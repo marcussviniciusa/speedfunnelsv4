@@ -1,0 +1,68 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.content-container {
+  flex: 1;
+  display: flex;
+}
+
+.main-content {
+  flex: 1;
+  padding: 20px;
+}
+
+/* Estilos para gráficos e cartões de métricas */
+.metric-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.metric-title {
+  font-size: 1rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.metric-value {
+  font-size: 1.8rem;
+  font-weight: 600;
+}
+
+.metric-change {
+  display: flex;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.change-positive {
+  color: #4caf50;
+}
+
+.change-negative {
+  color: #f44336;
+}
+
+/* Estilos responsivos */
+@media (max-width: 768px) {
+  .content-container {
+    flex-direction: column;
+  }
+}
