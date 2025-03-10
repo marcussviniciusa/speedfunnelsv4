@@ -22,7 +22,7 @@ const User = sequelize.define('User', {
   },
   password: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: true 
   },
   role: {
     type: DataTypes.ENUM('admin', 'manager', 'client'),
@@ -34,9 +34,34 @@ const User = sequelize.define('User', {
   },
   lastLogin: {
     type: DataTypes.DATE
+  },
+  googleId: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: true
+  },
+  googleAccessToken: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  googleRefreshToken: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  googleTokenExpiry: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  googleConnected: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  avatar: {
+    type: DataTypes.STRING,
+    allowNull: true
   }
 }, {
   timestamps: true
 });
 
-module.exports = { User };
+module.exports = User;

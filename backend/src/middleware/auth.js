@@ -1,10 +1,17 @@
 const jwt = require('jsonwebtoken');
-const { redisClient } = require('../config/redis');
+const authService = require('../services/auth.service');
+const logger = require('../utils/logger');
 
 // Authentication middleware to verify JWT token
+/**
+ * Middleware de autenticação para verificar token JWT
+ * @param {Object} req - Requisição Express
+ * @param {Object} res - Resposta Express
+ * @param {Function} next - Função next do Express
+ */
 const authenticate = async (req, res, next) => {
   try {
-    // Get token from Authorization header
+    // Obtém token do cabeçalho Authorization
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ message: 'Acesso não autorizado' });
@@ -12,19 +19,15 @@ const authenticate = async (req, res, next) => {
 
     const token = authHeader.split(' ')[1];
     
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Verifica o token
+    const decoded = await authService.verifyToken(token);
     
-    // Check if token is blacklisted (logged out)
-    const isBlacklisted = await redisClient.get(`bl_${token}`);
-    if (isBlacklisted) {
-      return res.status(401).json({ message: 'Token inválido' });
-    }
-    
-    // Add user info to request
+    // Adiciona informações do usuário à requisição
     req.user = decoded;
     next();
   } catch (error) {
+    logger.error(`Erro de autenticação: ${error.message}`);
+    
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({ message: 'Token expirado' });
     }
@@ -33,6 +36,11 @@ const authenticate = async (req, res, next) => {
 };
 
 // Role-based authorization middleware
+/**
+ * Middleware de autorização baseada em papéis
+ * @param {string|Array} roles - Papéis permitidos
+ * @returns {Function} Middleware de autorização
+ */
 const authorize = (roles = []) => {
   if (typeof roles === 'string') {
     roles = [roles];

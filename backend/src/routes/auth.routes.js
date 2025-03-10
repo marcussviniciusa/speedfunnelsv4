@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { body } = require('express-validator');
 const authController = require('../controllers/auth.controller');
+const googleAuthController = require('../controllers/google-auth.controller');
 const { validateRequest } = require('../middleware/validator');
 const { authenticate } = require('../middleware/auth');
 
@@ -18,11 +19,17 @@ const registerValidation = [
   body('role').isIn(['admin', 'manager', 'client']).withMessage('Perfil inválido')
 ];
 
-// Routes
+// Rotas de autenticação padrão
 router.post('/login', loginValidation, validateRequest, authController.login);
 router.post('/register', registerValidation, validateRequest, authController.register);
 router.get('/me', authenticate, authController.getProfile);
 router.post('/refresh-token', authController.refreshToken);
 router.post('/logout', authenticate, authController.logout);
+
+// Rotas de autenticação com Google
+router.get('/google', googleAuthController.initiateGoogleAuth);
+router.get('/google/callback', googleAuthController.handleGoogleCallback);
+router.post('/google/disconnect', authenticate, googleAuthController.disconnectGoogle);
+router.get('/google/status', authenticate, googleAuthController.checkGoogleConnection);
 
 module.exports = router;

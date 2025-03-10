@@ -10,6 +10,11 @@ module.exports = {
     env: process.env.NODE_ENV || 'development'
   },
   
+  // Configurações do frontend
+  frontend: {
+    url: process.env.FRONTEND_URL || 'http://localhost:3000'
+  },
+  
   // Configurações do banco de dados
   database: {
     host: process.env.DB_HOST || 'localhost',
@@ -44,5 +49,12 @@ module.exports = {
     viewId: process.env.GA_VIEW_ID,
     clientEmail: process.env.GA_CLIENT_EMAIL,
     privateKey: process.env.GA_PRIVATE_KEY ? process.env.GA_PRIVATE_KEY.replace(/\\n/g, '\n') : ''
+  },
+  
+  // Configurações de autenticação do Google
+  googleAuth: {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    redirectUrl: process.env.GOOGLE_REDIRECT_URL || 'http://localhost:3001/api/auth/google/callback'
   }
 };
