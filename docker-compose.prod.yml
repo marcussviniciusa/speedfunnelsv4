@@ -3,9 +3,7 @@ version: '3.8'
 services:
   # Backend API
   api:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: marcussviniciusa/speedfunnels-api:v1
     restart: always
     environment:
       - NODE_ENV=production
@@ -40,9 +38,7 @@ services:
 
   # ETL Process
   etl:
-    build:
-      context: ./etl
-      dockerfile: Dockerfile
+    image: marcussviniciusa/speedfunnels-etl:v1
     restart: always
     environment:
       - NODE_ENV=production
@@ -65,9 +61,7 @@ services:
 
   # Scheduler
   scheduler:
-    build:
-      context: ./scheduler
-      dockerfile: Dockerfile
+    image: marcussviniciusa/speedfunnels-scheduler:v1
     restart: always
     environment:
       - NODE_ENV=production
@@ -78,9 +72,7 @@ services:
 
   # Frontend
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: marcussviniciusa/speedfunnels-frontend:v1
     restart: always
     depends_on:
       - api

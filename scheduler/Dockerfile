@@ -8,4 +8,5 @@ RUN npm install
 
 COPY . .
 
-CMD ["npm", "run", "dev"]
+# Use npm start for production environment
+CMD ["npm", "start"]

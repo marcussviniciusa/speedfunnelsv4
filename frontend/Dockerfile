@@ -4,9 +4,16 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm install
+# Instalando as dependências padrão e adicionando dependências extras que podem estar faltando
+RUN npm install && \
+    npm install --save react-datepicker @mui/lab @date-io/date-fns date-fns react-chartjs-2 chart.js
 
 COPY . .
+
+# Configurando o NODE_ENV para produção
+ENV NODE_ENV=production
+# Desativando o modo CI para permitir warnings de linting durante o build
+ENV CI=false
 
 RUN npm run build
 

@@ -1,9 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Alert, Tabs, Tab } from 'react-bootstrap';
+import { 
+  Container, 
+  Grid, 
+  Card, 
+  CardContent, 
+  Typography, 
+  Button, 
+  Alert, 
+  Tabs, 
+  Tab, 
+  Box,
+  TextField
+} from '@mui/material';
 import { Line, Bar, Pie } from 'react-chartjs-2';
 import { Chart, registerables } from 'chart.js';
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
+import AdapterDateFns from '@mui/lab/AdapterDateFns';
+import LocalizationProvider from '@mui/lab/LocalizationProvider';
+import DatePicker from '@mui/lab/DatePicker';
 
 import googleAnalyticsService from '../services/googleAnalyticsService';
 import metaAdsService from '../services/metaAdsService';
@@ -238,134 +251,134 @@ const AnalyticsDashboard = () => {
   };
   
   return (
-    <Container fluid className="my-4">
-      <h1 className="mb-4">Dashboard de Analytics</h1>
+    <Container maxWidth="lg" sx={{ mt: 4 }}>
+      <Typography variant="h4" mb={4}>Dashboard de Analytics</Typography>
       
       {/* Seletor de datas */}
-      <Card className="mb-4">
-        <Card.Body>
-          <Row>
-            <Col md={3}>
-              <div className="mb-3">
-                <label className="form-label">Data de início</label>
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={3}>
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
                 <DatePicker
-                  selected={startDate}
-                  onChange={date => setStartDate(date)}
-                  className="form-control"
-                  dateFormat="dd/MM/yyyy"
+                  label="Data de início"
+                  value={startDate}
+                  onChange={(newValue) => {
+                    setStartDate(newValue);
+                  }}
+                  renderInput={(params) => <TextField {...params} />}
                 />
-              </div>
-            </Col>
-            <Col md={3}>
-              <div className="mb-3">
-                <label className="form-label">Data de fim</label>
+              </LocalizationProvider>
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
                 <DatePicker
-                  selected={endDate}
-                  onChange={date => setEndDate(date)}
-                  className="form-control"
-                  dateFormat="dd/MM/yyyy"
+                  label="Data de fim"
+                  value={endDate}
+                  onChange={(newValue) => {
+                    setEndDate(newValue);
+                  }}
+                  renderInput={(params) => <TextField {...params} />}
                   minDate={startDate}
                 />
-              </div>
-            </Col>
-            <Col md={6} className="d-flex align-items-end">
+              </LocalizationProvider>
+            </Grid>
+            <Grid item xs={12} md={6} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
               <Button 
-                variant="primary" 
+                variant="contained" 
                 onClick={handleDateChange}
                 disabled={loading}
-                className="mb-3"
+                sx={{ mr: 2 }}
               >
                 {loading ? 'Carregando...' : 'Atualizar Dados'}
               </Button>
               
               {!googleConnected && (
                 <Button
-                  variant="outline-primary"
+                  variant="outlined"
                   onClick={handleConnectGoogle}
-                  className="mb-3 ms-2"
                 >
                   Conectar com Google
                 </Button>
               )}
-            </Col>
-          </Row>
-        </Card.Body>
+            </Grid>
+          </Grid>
+        </CardContent>
       </Card>
       
       {/* Exibir erros */}
       {error && (
-        <Alert variant="danger" className="mb-4">
+        <Alert severity="error" sx={{ mb: 4 }}>
           {error}
         </Alert>
       )}
       
       {loading ? (
-        <div className="text-center my-5">
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
           <LoadingSpinner />
-          <p className="mt-3">Carregando dados de analytics...</p>
-        </div>
+          <Typography variant="h6" sx={{ mt: 2 }}>Carregando dados de analytics...</Typography>
+        </Box>
       ) : (
-        <Tabs defaultActiveKey="google" className="mb-4">
+        <Tabs defaultActiveKey="google" sx={{ mb: 4 }}>
           {/* Tab do Google Analytics */}
           <Tab eventKey="google" title="Google Analytics">
             {!googleConnected ? (
-              <Alert variant="warning" className="my-4">
+              <Alert severity="warning" sx={{ my: 4 }}>
                 <Alert.Heading>Conta Google não conectada</Alert.Heading>
-                <p>
+                <Typography>
                   Para visualizar os dados do Google Analytics, você precisa conectar sua conta Google.
-                </p>
-                <Button variant="primary" onClick={handleConnectGoogle}>
+                </Typography>
+                <Button variant="contained" onClick={handleConnectGoogle}>
                   Conectar com Google
                 </Button>
               </Alert>
             ) : (
               <>
                 {/* Resumo do GA */}
-                <Row className="mb-4">
-                  <Col md={3}>
-                    <Card className="h-100">
-                      <Card.Body className="text-center">
-                        <h5>Sessões</h5>
-                        <h3>{gaSummary?.sessions || 0}</h3>
-                        <p>{formatPercentChange(gaSummary?.sessionsChange)}</p>
-                      </Card.Body>
+                <Grid container spacing={2} sx={{ mb: 4 }}>
+                  <Grid item xs={12} md={3}>
+                    <Card sx={{ height: '100%' }}>
+                      <CardContent sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                        <Typography variant="h6">Sessões</Typography>
+                        <Typography variant="h4">{gaSummary?.sessions || 0}</Typography>
+                        <Typography>{formatPercentChange(gaSummary?.sessionsChange)}</Typography>
+                      </CardContent>
                     </Card>
-                  </Col>
-                  <Col md={3}>
-                    <Card className="h-100">
-                      <Card.Body className="text-center">
-                        <h5>Usuários</h5>
-                        <h3>{gaSummary?.users || 0}</h3>
-                        <p>{formatPercentChange(gaSummary?.usersChange)}</p>
-                      </Card.Body>
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <Card sx={{ height: '100%' }}>
+                      <CardContent sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                        <Typography variant="h6">Usuários</Typography>
+                        <Typography variant="h4">{gaSummary?.users || 0}</Typography>
+                        <Typography>{formatPercentChange(gaSummary?.usersChange)}</Typography>
+                      </CardContent>
                     </Card>
-                  </Col>
-                  <Col md={3}>
-                    <Card className="h-100">
-                      <Card.Body className="text-center">
-                        <h5>Taxa de Rejeição</h5>
-                        <h3>{gaSummary?.bounceRate?.toFixed(2) || 0}%</h3>
-                        <p>{formatPercentChange(gaSummary?.bounceRateChange)}</p>
-                      </Card.Body>
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <Card sx={{ height: '100%' }}>
+                      <CardContent sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                        <Typography variant="h6">Taxa de Rejeição</Typography>
+                        <Typography variant="h4">{gaSummary?.bounceRate?.toFixed(2) || 0}%</Typography>
+                        <Typography>{formatPercentChange(gaSummary?.bounceRateChange)}</Typography>
+                      </CardContent>
                     </Card>
-                  </Col>
-                  <Col md={3}>
-                    <Card className="h-100">
-                      <Card.Body className="text-center">
-                        <h5>Taxa de Conversão</h5>
-                        <h3>{gaSummary?.goalConversionRate?.toFixed(2) || 0}%</h3>
-                        <p>{formatPercentChange(gaSummary?.goalConversionRateChange)}</p>
-                      </Card.Body>
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <Card sx={{ height: '100%' }}>
+                      <CardContent sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                        <Typography variant="h6">Taxa de Conversão</Typography>
+                        <Typography variant="h4">{gaSummary?.goalConversionRate?.toFixed(2) || 0}%</Typography>
+                        <Typography>{formatPercentChange(gaSummary?.goalConversionRateChange)}</Typography>
+                      </CardContent>
                     </Card>
-                  </Col>
-                </Row>
+                  </Grid>
+                </Grid>
                 
                 {/* Gráficos do GA */}
-                <Row className="mb-4">
-                  <Col md={8}>
-                    <Card className="h-100">
-                      <Card.Header>Desempenho no Período</Card.Header>
-                      <Card.Body>
+                <Grid container spacing={2} sx={{ mb: 4 }}>
+                  <Grid item xs={12} md={8}>
+                    <Card sx={{ height: '100%' }}>
+                      <CardContent>
                         {gaPerformance ? (
                           <Line 
                             data={prepareGAPerformanceChart()} 
@@ -377,15 +390,14 @@ const AnalyticsDashboard = () => {
                             height={300}
                           />
                         ) : (
-                          <p className="text-center">Nenhum dado disponível</p>
+                          <Typography variant="h6" sx={{ textAlign: 'center' }}>Nenhum dado disponível</Typography>
                         )}
-                      </Card.Body>
+                      </CardContent>
                     </Card>
-                  </Col>
-                  <Col md={4}>
-                    <Card className="h-100">
-                      <Card.Header>Fontes de Tráfego</Card.Header>
-                      <Card.Body>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ height: '100%' }}>
+                      <CardContent>
                         {gaTrafficSources ? (
                           <Pie 
                             data={prepareGATrafficSourcesChart()}
@@ -397,51 +409,48 @@ const AnalyticsDashboard = () => {
                             height={250}
                           />
                         ) : (
-                          <p className="text-center">Nenhum dado disponível</p>
+                          <Typography variant="h6" sx={{ textAlign: 'center' }}>Nenhum dado disponível</Typography>
                         )}
-                      </Card.Body>
+                      </CardContent>
                     </Card>
-                  </Col>
-                </Row>
+                  </Grid>
+                </Grid>
                 
                 {/* Tabelas do GA */}
-                <Row>
-                  <Col>
-                    <Card>
-                      <Card.Header>Páginas Mais Visitadas</Card.Header>
-                      <Card.Body>
-                        {gaTopPages && gaTopPages.length > 0 ? (
-                          <div className="table-responsive">
-                            <table className="table table-striped">
-                              <thead>
-                                <tr>
-                                  <th>Página</th>
-                                  <th>Visualizações</th>
-                                  <th>Tempo Médio (segundos)</th>
-                                  <th>Entradas</th>
-                                  <th>Taxa de Rejeição</th>
+                <Grid item xs={12}>
+                  <Card>
+                    <CardContent>
+                      {gaTopPages && gaTopPages.length > 0 ? (
+                        <Box sx={{ overflowX: 'auto' }}>
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>Página</th>
+                                <th>Visualizações</th>
+                                <th>Tempo Médio (segundos)</th>
+                                <th>Entradas</th>
+                                <th>Taxa de Rejeição</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {gaTopPages.map((page, index) => (
+                                <tr key={index}>
+                                  <td>{page.path}</td>
+                                  <td>{page.pageviews}</td>
+                                  <td>{page.avgTimeOnPage.toFixed(2)}</td>
+                                  <td>{page.entrances}</td>
+                                  <td>{page.bounceRate.toFixed(2)}%</td>
                                 </tr>
-                              </thead>
-                              <tbody>
-                                {gaTopPages.map((page, index) => (
-                                  <tr key={index}>
-                                    <td>{page.path}</td>
-                                    <td>{page.pageviews}</td>
-                                    <td>{page.avgTimeOnPage.toFixed(2)}</td>
-                                    <td>{page.entrances}</td>
-                                    <td>{page.bounceRate.toFixed(2)}%</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        ) : (
-                          <p className="text-center">Nenhum dado disponível</p>
-                        )}
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                </Row>
+                              ))}
+                            </tbody>
+                          </table>
+                        </Box>
+                      ) : (
+                        <Typography variant="h6" sx={{ textAlign: 'center' }}>Nenhum dado disponível</Typography>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
               </>
             )}
           </Tab>
@@ -449,51 +458,50 @@ const AnalyticsDashboard = () => {
           {/* Tab do Meta Ads */}
           <Tab eventKey="meta" title="Meta Ads">
             {/* Resumo do Meta Ads */}
-            <Row className="mb-4">
-              <Col md={3}>
-                <Card className="h-100">
-                  <Card.Body className="text-center">
-                    <h5>Impressões</h5>
-                    <h3>{metaSummary?.impressions || 0}</h3>
-                    <p>{formatPercentChange(metaSummary?.impressionsChange)}</p>
-                  </Card.Body>
+            <Grid container spacing={2} sx={{ mb: 4 }}>
+              <Grid item xs={12} md={3}>
+                <Card sx={{ height: '100%' }}>
+                  <CardContent sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                    <Typography variant="h6">Impressões</Typography>
+                    <Typography variant="h4">{metaSummary?.impressions || 0}</Typography>
+                    <Typography>{formatPercentChange(metaSummary?.impressionsChange)}</Typography>
+                  </CardContent>
                 </Card>
-              </Col>
-              <Col md={3}>
-                <Card className="h-100">
-                  <Card.Body className="text-center">
-                    <h5>Cliques</h5>
-                    <h3>{metaSummary?.clicks || 0}</h3>
-                    <p>{formatPercentChange(metaSummary?.clicksChange)}</p>
-                  </Card.Body>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <Card sx={{ height: '100%' }}>
+                  <CardContent sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                    <Typography variant="h6">Cliques</Typography>
+                    <Typography variant="h4">{metaSummary?.clicks || 0}</Typography>
+                    <Typography>{formatPercentChange(metaSummary?.clicksChange)}</Typography>
+                  </CardContent>
                 </Card>
-              </Col>
-              <Col md={3}>
-                <Card className="h-100">
-                  <Card.Body className="text-center">
-                    <h5>CTR</h5>
-                    <h3>{metaSummary?.ctr?.toFixed(2) || 0}%</h3>
-                    <p>{formatPercentChange(metaSummary?.ctrChange)}</p>
-                  </Card.Body>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <Card sx={{ height: '100%' }}>
+                  <CardContent sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                    <Typography variant="h6">CTR</Typography>
+                    <Typography variant="h4">{metaSummary?.ctr?.toFixed(2) || 0}%</Typography>
+                    <Typography>{formatPercentChange(metaSummary?.ctrChange)}</Typography>
+                  </CardContent>
                 </Card>
-              </Col>
-              <Col md={3}>
-                <Card className="h-100">
-                  <Card.Body className="text-center">
-                    <h5>Gastos</h5>
-                    <h3>{formatCurrency(metaSummary?.spend)}</h3>
-                    <p>{formatPercentChange(metaSummary?.spendChange)}</p>
-                  </Card.Body>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <Card sx={{ height: '100%' }}>
+                  <CardContent sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                    <Typography variant="h6">Gastos</Typography>
+                    <Typography variant="h4">{formatCurrency(metaSummary?.spend)}</Typography>
+                    <Typography>{formatPercentChange(metaSummary?.spendChange)}</Typography>
+                  </CardContent>
                 </Card>
-              </Col>
-            </Row>
+              </Grid>
+            </Grid>
             
             {/* Gráficos do Meta Ads */}
-            <Row className="mb-4">
-              <Col md={8}>
-                <Card className="h-100">
-                  <Card.Header>Desempenho no Período</Card.Header>
-                  <Card.Body>
+            <Grid container spacing={2} sx={{ mb: 4 }}>
+              <Grid item xs={12} md={8}>
+                <Card sx={{ height: '100%' }}>
+                  <CardContent>
                     {metaPerformance ? (
                       <Line 
                         data={prepareMetaPerformanceChart()} 
@@ -505,15 +513,14 @@ const AnalyticsDashboard = () => {
                         height={300}
                       />
                     ) : (
-                      <p className="text-center">Nenhum dado disponível</p>
+                      <Typography variant="h6" sx={{ textAlign: 'center' }}>Nenhum dado disponível</Typography>
                     )}
-                  </Card.Body>
+                  </CardContent>
                 </Card>
-              </Col>
-              <Col md={4}>
-                <Card className="h-100">
-                  <Card.Header>Campanhas</Card.Header>
-                  <Card.Body>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Card sx={{ height: '100%' }}>
+                  <CardContent>
                     {metaCampaigns ? (
                       <Bar 
                         data={prepareMetaCampaignsChart()}
@@ -525,61 +532,58 @@ const AnalyticsDashboard = () => {
                         height={250}
                       />
                     ) : (
-                      <p className="text-center">Nenhum dado disponível</p>
+                      <Typography variant="h6" sx={{ textAlign: 'center' }}>Nenhum dado disponível</Typography>
                     )}
-                  </Card.Body>
+                  </CardContent>
                 </Card>
-              </Col>
-            </Row>
+              </Grid>
+            </Grid>
             
             {/* Tabelas do Meta Ads */}
-            <Row>
-              <Col>
-                <Card>
-                  <Card.Header>Campanhas Ativas</Card.Header>
-                  <Card.Body>
-                    {metaCampaigns && metaCampaigns.length > 0 ? (
-                      <div className="table-responsive">
-                        <table className="table table-striped">
-                          <thead>
-                            <tr>
-                              <th>Nome</th>
-                              <th>Status</th>
-                              <th>Impressões</th>
-                              <th>Cliques</th>
-                              <th>CTR</th>
-                              <th>Gastos</th>
-                              <th>CPC</th>
-                              <th>Conversões</th>
+            <Grid item xs={12}>
+              <Card>
+                <CardContent>
+                  {metaCampaigns && metaCampaigns.length > 0 ? (
+                    <Box sx={{ overflowX: 'auto' }}>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Nome</th>
+                            <th>Status</th>
+                            <th>Impressões</th>
+                            <th>Cliques</th>
+                            <th>CTR</th>
+                            <th>Gastos</th>
+                            <th>CPC</th>
+                            <th>Conversões</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {metaCampaigns.map((campaign, index) => (
+                            <tr key={index}>
+                              <td>{campaign.name}</td>
+                              <td>
+                                <Typography sx={{ color: campaign.status === 'ACTIVE' ? 'green' : 'gray' }}>
+                                  {campaign.status}
+                                </Typography>
+                              </td>
+                              <td>{campaign.impressions}</td>
+                              <td>{campaign.clicks}</td>
+                              <td>{campaign.ctr?.toFixed(2)}%</td>
+                              <td>{formatCurrency(campaign.spend)}</td>
+                              <td>{formatCurrency(campaign.cpc)}</td>
+                              <td>{campaign.conversions}</td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {metaCampaigns.map((campaign, index) => (
-                              <tr key={index}>
-                                <td>{campaign.name}</td>
-                                <td>
-                                  <span className={`badge bg-${campaign.status === 'ACTIVE' ? 'success' : 'secondary'}`}>
-                                    {campaign.status}
-                                  </span>
-                                </td>
-                                <td>{campaign.impressions}</td>
-                                <td>{campaign.clicks}</td>
-                                <td>{campaign.ctr?.toFixed(2)}%</td>
-                                <td>{formatCurrency(campaign.spend)}</td>
-                                <td>{formatCurrency(campaign.cpc)}</td>
-                                <td>{campaign.conversions}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <p className="text-center">Nenhum dado disponível</p>
-                    )}
-                  </Card.Body>
-                </Card>
-              </Col>
-            </Row>
+                          ))}
+                        </tbody>
+                      </table>
+                    </Box>
+                  ) : (
+                    <Typography variant="h6" sx={{ textAlign: 'center' }}>Nenhum dado disponível</Typography>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
           </Tab>
         </Tabs>
       )}
