@@ -5,6 +5,8 @@ const authController = require('../controllers/auth.controller');
 const googleAuthController = require('../controllers/google-auth.controller');
 const { validateRequest } = require('../middleware/validator');
 const { authenticate } = require('../middleware/auth');
+// Novo middleware em conformidade com OAuth 2.0
+const { authMiddleware } = require('../middlewares/auth.middleware');
 
 // Validation rules
 const loginValidation = [

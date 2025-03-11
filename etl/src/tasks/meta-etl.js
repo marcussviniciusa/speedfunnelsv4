@@ -4,7 +4,7 @@ const logger = require('../utils/logger');
 const metaService = require('../services/meta-service');
 
 // Load models
-const { Client } = require('../models/client.model');
+const { BusinessAccount } = require('../models/business-account.model');
 const { 
   MetaCampaign, 
   MetaAdSet, 
@@ -13,15 +13,15 @@ const {
 } = require('../models/meta-ads.model');
 
 /**
- * Process Meta Ads data for a specific client
- * @param {Object} client - Client model instance
+ * Process Meta Ads data for a specific business account
+ * @param {Object} businessAccount - BusinessAccount model instance
  */
-async function processClient(client) {
-  logger.info(`Starting Meta Ads ETL for client: ${client.name}`);
-  const metaCredential = client.MetaCredential;
+async function processBusinessAccount(businessAccount) {
+  logger.info(`Starting Meta Ads ETL for business account: ${businessAccount.accountName}`);
+  const accessToken = businessAccount.accessToken;
   
-  if (!metaCredential || !metaCredential.accessToken) {
-    logger.error(`No valid Meta credentials for client: ${client.name}`);
+  if (!accessToken) {
+    logger.error(`No valid Meta access token for business account: ${businessAccount.accountName}`);
     return;
   }
   
@@ -426,7 +426,7 @@ async function processAdMetrics(client, startDate, endDate) {
 }
 
 module.exports = {
-  processClient,
+  processBusinessAccount,
   processCampaigns,
   processPerformanceData
 };

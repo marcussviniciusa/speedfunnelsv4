@@ -4,7 +4,7 @@ const logger = require('../utils/logger');
 const gaService = require('../services/ga-service');
 
 // Load models
-const { Client } = require('../models/client.model');
+const { BusinessAccount } = require('../models/business-account.model');
 const { 
   GASite, 
   GAPerformance, 
@@ -13,75 +13,76 @@ const {
 } = require('../models/google-analytics.model');
 
 /**
- * Process Google Analytics data for a specific client
- * @param {Object} client - Client model instance
+ * Process Google Analytics data for a specific business account
+ * @param {Object} businessAccount - BusinessAccount model instance
  */
-async function processClient(client) {
-  logger.info(`Starting Google Analytics ETL for client: ${client.name}`);
-  const gaCredential = client.GoogleAnalyticsCredential;
+async function processBusinessAccount(businessAccount) {
+  logger.info(`Starting Google Analytics ETL for business account: ${businessAccount.accountName}`);
+  // Com OAuth, o próprio businessAccount contém as credenciais do Google Analytics
+  const accessToken = businessAccount.accessToken;
   
-  if (!gaCredential || !gaCredential.propertyId) {
-    logger.error(`No valid Google Analytics credentials for client: ${client.name}`);
+  if (!accessToken || !businessAccount.accountData || !businessAccount.accountData.propertyId) {
+    logger.error(`No valid Google Analytics credentials for business account: ${businessAccount.accountName}`);
     return;
   }
   
+  const propertyId = businessAccount.accountData.propertyId;
+  
   try {
-    // Initialize Google Analytics service with client credentials
-    await gaService.initialize(gaCredential);
+    // Initialize Google Analytics service with business account credentials
+    await gaService.initialize({ accessToken, propertyId });
     
     // Process site information
-    await processSiteInfo(client, gaCredential);
+    await processSiteInfo(businessAccount, { accessToken, propertyId });
     
     // Process performance data
-    await processPerformanceData(client);
+    await processPerformanceData(businessAccount);
     
     // Process funnel data if any funnels are configured
-    await processFunnelData(client);
+    await processFunnelData(businessAccount);
     
-    logger.info(`Completed Google Analytics ETL for client: ${client.name}`);
+    logger.info(`Completed Google Analytics ETL for business account: ${businessAccount.accountName}`);
   } catch (error) {
-    logger.error(`Error in Google Analytics ETL for client ${client.name}: ${error.message}`);
+    logger.error(`Error in Google Analytics ETL for business account ${businessAccount.accountName}: ${error.message}`);
     throw error;
   }
 }
 
 /**
  * Process site information
- * @param {Object} client - Client model instance
- * @param {Object} gaCredential - Google Analytics credential
+ * @param {Object} businessAccount - BusinessAccount model instance
+ * @param {Object} credentials - Google Analytics credentials
  */
-async function processSiteInfo(client, gaCredential) {
-  logger.info(`Processing site information for client: ${client.name}`);
+async function processSiteInfo(businessAccount, credentials) {
+  logger.info(`Processing site information for business account: ${businessAccount.accountName}`);
   
   try {
     // Get site information from Google Analytics API
-    const siteInfo = await gaService.getSiteInfo(gaCredential.propertyId);
+    const siteInfo = await gaService.getSiteInfo(credentials.propertyId);
     
     // Find or create site record
     const [site, created] = await GASite.findOrCreate({
       where: {
-        propertyId: gaCredential.propertyId,
-        ClientId: client.id
+        propertyId: credentials.propertyId,
+        businessAccountId: businessAccount.id
       },
       defaults: {
-        name: siteInfo.name || `Site ${gaCredential.propertyId}`,
-        url: siteInfo.url,
-        timezone: siteInfo.timezone,
-        sourceData: siteInfo
+        siteName: siteInfo.name || `Site ${credentials.propertyId}`,
+        siteUrl: siteInfo.url,
+        metaData: siteInfo
       }
     });
     
     // Update site if it exists
     if (!created) {
       await site.update({
-        name: siteInfo.name || `Site ${gaCredential.propertyId}`,
-        url: siteInfo.url,
-        timezone: siteInfo.timezone,
-        sourceData: siteInfo
+        siteName: siteInfo.name || `Site ${credentials.propertyId}`,
+        siteUrl: siteInfo.url,
+        metaData: siteInfo
       });
     }
     
-    logger.info(`Completed processing site information for client: ${client.name}`);
+    logger.info(`Completed processing site information for business account: ${businessAccount.accountName}`);
   } catch (error) {
     logger.error(`Error processing site information: ${error.message}`);
     throw error;
@@ -90,15 +91,15 @@ async function processSiteInfo(client, gaCredential) {
 
 /**
  * Process performance data for all sites
- * @param {Object} client - Client model instance
+ * @param {Object} businessAccount - BusinessAccount model instance
  */
-async function processPerformanceData(client) {
-  logger.info(`Processing performance data for client: ${client.name}`);
+async function processPerformanceData(businessAccount) {
+  logger.info(`Processing performance data for business account: ${businessAccount.accountName}`);
   
   try {
-    // Get all sites for this client
+    // Get all sites for this business account
     const sites = await GASite.findAll({
-      where: { ClientId: client.id }
+      where: { businessAccountId: businessAccount.id }
     });
     
     // Define date range (last 30 days by default)
@@ -173,7 +174,7 @@ async function processPerformanceData(client) {
       await processGeographicData(site, startDate, endDate);
     }
     
-    logger.info(`Completed processing performance data for client: ${client.name}`);
+    logger.info(`Completed processing performance data for business account: ${businessAccount.accountName}`);
   } catch (error) {
     logger.error(`Error processing performance data: ${error.message}`);
     throw error;
@@ -305,23 +306,23 @@ async function processGeographicData(site, startDate, endDate) {
 
 /**
  * Process funnel data for all configured funnels
- * @param {Object} client - Client model instance
+ * @param {Object} businessAccount - BusinessAccount model instance
  */
-async function processFunnelData(client) {
-  logger.info(`Processing funnel data for client: ${client.name}`);
+async function processFunnelData(businessAccount) {
+  logger.info(`Processing funnel data for business account: ${businessAccount.accountName}`);
   
   try {
-    // Get all funnels for this client
+    // Get all funnels for this business account
     const funnels = await GAFunnel.findAll({
       where: {
-        ClientId: client.id,
+        '$GASite.businessAccountId$': businessAccount.id,
         active: true
       },
       include: [{ model: GASite }]
     });
     
     if (funnels.length === 0) {
-      logger.info(`No active funnels found for client: ${client.name}`);
+      logger.info(`No active funnels found for business account: ${businessAccount.accountName}`);
       return;
     }
     
@@ -379,7 +380,7 @@ async function processFunnelData(client) {
 }
 
 module.exports = {
-  processClient,
+  processBusinessAccount,
   processSiteInfo,
   processPerformanceData,
   processFunnelData
