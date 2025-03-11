@@ -3,49 +3,150 @@ const { DateTime } = require('luxon');
 const config = require('../config/config');
 const logger = require('../utils/logger');
 const { redisClient } = require('../utils/redis');
+const User = require('../models/user.model');
 
 /**
  * Serviço para interação com a API do Google Analytics
  */
 class GoogleAnalyticsService {
   constructor() {
-    this.viewId = config.googleAnalytics.viewId;
-    this.auth = null;
+    this.oauth2Client = new google.auth.OAuth2(
+      config.googleAuth.clientId,
+      config.googleAuth.clientSecret,
+      config.googleAuth.redirectUrl
+    );
   }
 
   /**
-   * Inicializa a autenticação com o Google Analytics
+   * Inicializa a autenticação com o Google Analytics usando tokens OAuth
+   * @param {string} userId - ID do usuário
    * @private
    */
-  async _initializeAuth() {
-    if (this.auth) return;
-
+  async _initializeAuth(userId) {
     try {
-      // Cria um cliente JWT usando a chave de conta de serviço
-      this.auth = new google.auth.JWT({
-        email: config.googleAnalytics.clientEmail,
-        key: config.googleAnalytics.privateKey,
-        scopes: ['https://www.googleapis.com/auth/analytics.readonly']
-      });
-
-      // Autentica com as APIs do Google
-      await this.auth.authorize();
+      // Se não temos um userId, não podemos obter os tokens
+      if (!userId) {
+        throw new Error('ID do usuário não fornecido para autenticação com Google Analytics');
+      }
       
-      // Inicializa o cliente do Analytics
+      // Busca os tokens de acesso do usuário no banco de dados
+      const user = await User.findByPk(userId, {
+        attributes: ['id', 'googleAccessToken', 'googleRefreshToken', 'googleTokenExpiry', 'googleConnected']
+      });
+      
+      if (!user || !user.googleConnected) {
+        throw new Error('Usuário não autenticado com o Google');
+      }
+      
+      // Verifica se o token expirou e renova se necessário
+      if (this._isTokenExpired(user.googleTokenExpiry)) {
+        if (!user.googleRefreshToken) {
+          throw new Error('Token de atualização não disponível. Por favor, reconecte sua conta do Google.');
+        }
+        await this._refreshToken(userId, {
+          refreshToken: user.googleRefreshToken
+        });
+      } else {
+        // Configura as credenciais no cliente OAuth
+        this.oauth2Client.setCredentials({
+          access_token: user.googleAccessToken,
+          refresh_token: user.googleRefreshToken,
+          expiry_date: user.googleTokenExpiry
+        });
+      }
+      
+      // Inicializa a API do Google Analytics
       this.analyticsReporting = google.analyticsreporting({
         version: 'v4',
-        auth: this.auth
+        auth: this.oauth2Client
       });
       
       this.analytics = google.analytics({
         version: 'v3',
-        auth: this.auth
+        auth: this.oauth2Client
       });
+      
+      // Obter a lista de propriedades do GA que o usuário tem acesso
+      const accountsResponse = await this.analytics.management.accounts.list();
+      
+      if (!accountsResponse.data.items || accountsResponse.data.items.length === 0) {
+        throw new Error('Nenhuma conta do Google Analytics encontrada para este usuário');
+      }
+      
+      // Obter a primeira conta (pode ser melhorado para selecionar uma conta específica)
+      const accountId = accountsResponse.data.items[0].id;
+      
+      // Obter as propriedades para esta conta
+      const propertiesResponse = await this.analytics.management.webproperties.list({
+        accountId: accountId
+      });
+      
+      if (!propertiesResponse.data.items || propertiesResponse.data.items.length === 0) {
+        throw new Error('Nenhuma propriedade do Google Analytics encontrada para esta conta');
+      }
+      
+      // Obter a primeira propriedade (pode ser melhorado para selecionar uma propriedade específica)
+      const propertyId = propertiesResponse.data.items[0].id;
+      
+      // Obter os perfis (views) para esta propriedade
+      const profilesResponse = await this.analytics.management.profiles.list({
+        accountId: accountId,
+        webPropertyId: propertyId
+      });
+      
+      if (!profilesResponse.data.items || profilesResponse.data.items.length === 0) {
+        throw new Error('Nenhum perfil (view) do Google Analytics encontrado para esta propriedade');
+      }
+      
+      // Definir o viewId para o primeiro perfil (pode ser melhorado para selecionar um perfil específico)
+      this.viewId = profilesResponse.data.items[0].id;
 
-      logger.info('Autenticação com Google Analytics inicializada com sucesso');
+      logger.info(`Autenticação com Google Analytics inicializada com sucesso para usuário ${userId}. ViewId: ${this.viewId}`);
     } catch (error) {
       logger.error(`Erro ao inicializar autenticação com Google Analytics: ${error.message}`, { stack: error.stack });
       throw error;
+    }
+  }
+
+  /**
+   * Verifica se o token está expirado
+   * @param {number} expiryDate - Data de expiração do token
+   * @returns {boolean} - True se o token estiver expirado
+   * @private
+   */
+  _isTokenExpired(expiryDate) {
+    return expiryDate ? expiryDate <= Date.now() : true;
+  }
+
+  /**
+   * Atualiza o token de acesso usando o refresh token
+   * @param {string} userId - ID do usuário
+   * @param {Object} account - Conta do Google do usuário
+   * @private
+   */
+  async _refreshToken(userId, account) {
+    try {
+      this.oauth2Client.setCredentials({
+        refresh_token: account.refreshToken
+      });
+
+      const { tokens } = await this.oauth2Client.refreshToken(account.refreshToken);
+      
+      // Atualiza os tokens no banco de dados
+      await User.update({
+        googleAccessToken: tokens.access_token,
+        googleTokenExpiry: tokens.expiry_date
+      }, {
+        where: { id: userId }
+      });
+
+      // Atualiza os tokens no cliente OAuth
+      this.oauth2Client.setCredentials(tokens);
+      
+      logger.info(`Token do Google Analytics renovado para usuário ${userId}`);
+    } catch (error) {
+      logger.error(`Erro ao renovar token do Google Analytics: ${error.message}`, { stack: error.stack });
+      throw new Error('Falha ao renovar token de acesso ao Google Analytics. Por favor, reconecte sua conta.');
     }
   }
 
@@ -54,20 +155,21 @@ class GoogleAnalyticsService {
    * @param {string} startDate - Data de início (YYYY-MM-DD)
    * @param {string} endDate - Data de fim (YYYY-MM-DD)
    * @param {string} clientId - ID do cliente (opcional)
+   * @param {string} userId - ID do usuário autenticado
    * @returns {Promise<Object>} Dados resumidos
    */
-  async getSummary(startDate, endDate, clientId) {
-    const cacheKey = `ga_summary_${startDate}_${endDate}_${clientId || 'all'}`;
+  async getSummary(startDate, endDate, clientId, userId) {
+    const cacheKey = `ga_summary_${startDate}_${endDate}_${clientId || 'all'}_${userId}`;
     
     // Verifica se há dados em cache
     const cachedData = await redisClient.get(cacheKey);
     if (cachedData) {
-      logger.info('Usando dados em cache para o resumo do Google Analytics');
+      logger.info(`Usando dados em cache para o resumo do Google Analytics para usuário ${userId}`);
       return JSON.parse(cachedData);
     }
     
     try {
-      await this._initializeAuth();
+      await this._initializeAuth(userId);
       
       // Calcula o período anterior para comparação
       const previousPeriod = this._getPreviousPeriod(startDate, endDate);
@@ -181,20 +283,21 @@ class GoogleAnalyticsService {
    * @param {string} startDate - Data de início (YYYY-MM-DD)
    * @param {string} endDate - Data de fim (YYYY-MM-DD)
    * @param {string} clientId - ID do cliente (opcional)
+   * @param {string} userId - ID do usuário autenticado
    * @returns {Promise<Array>} Dados de desempenho por dia
    */
-  async getPerformance(startDate, endDate, clientId) {
-    const cacheKey = `ga_performance_${startDate}_${endDate}_${clientId || 'all'}`;
+  async getPerformance(startDate, endDate, clientId, userId) {
+    const cacheKey = `ga_performance_${startDate}_${endDate}_${clientId || 'all'}_${userId}`;
     
     // Verifica se há dados em cache
     const cachedData = await redisClient.get(cacheKey);
     if (cachedData) {
-      logger.info('Usando dados em cache para o desempenho do Google Analytics');
+      logger.info(`Usando dados em cache para o desempenho do Google Analytics para usuário ${userId}`);
       return JSON.parse(cachedData);
     }
     
     try {
-      await this._initializeAuth();
+      await this._initializeAuth(userId);
       
       // Configura a requisição para obter dados diários
       const performanceRequest = {
@@ -273,20 +376,21 @@ class GoogleAnalyticsService {
    * @param {string} startDate - Data de início (YYYY-MM-DD)
    * @param {string} endDate - Data de fim (YYYY-MM-DD)
    * @param {string} clientId - ID do cliente (opcional)
+   * @param {string} userId - ID do usuário autenticado
    * @returns {Promise<Array>} Dados de dispositivos
    */
-  async getDevices(startDate, endDate, clientId) {
-    const cacheKey = `ga_devices_${startDate}_${endDate}_${clientId || 'all'}`;
+  async getDevices(startDate, endDate, clientId, userId) {
+    const cacheKey = `ga_devices_${startDate}_${endDate}_${clientId || 'all'}_${userId}`;
     
     // Verifica se há dados em cache
     const cachedData = await redisClient.get(cacheKey);
     if (cachedData) {
-      logger.info('Usando dados em cache para dispositivos do Google Analytics');
+      logger.info(`Usando dados em cache para dispositivos do Google Analytics para usuário ${userId}`);
       return JSON.parse(cachedData);
     }
     
     try {
-      await this._initializeAuth();
+      await this._initializeAuth(userId);
       
       // Configura a requisição para obter dados de dispositivos
       const devicesRequest = {
@@ -361,20 +465,21 @@ class GoogleAnalyticsService {
    * @param {string} startDate - Data de início (YYYY-MM-DD)
    * @param {string} endDate - Data de fim (YYYY-MM-DD)
    * @param {string} clientId - ID do cliente (opcional)
+   * @param {string} userId - ID do usuário autenticado
    * @returns {Promise<Array>} Dados de fontes de tráfego
    */
-  async getTrafficSources(startDate, endDate, clientId) {
-    const cacheKey = `ga_traffic_${startDate}_${endDate}_${clientId || 'all'}`;
+  async getTrafficSources(startDate, endDate, clientId, userId) {
+    const cacheKey = `ga_traffic_${startDate}_${endDate}_${clientId || 'all'}_${userId}`;
     
     // Verifica se há dados em cache
     const cachedData = await redisClient.get(cacheKey);
     if (cachedData) {
-      logger.info('Usando dados em cache para fontes de tráfego do Google Analytics');
+      logger.info(`Usando dados em cache para fontes de tráfego do Google Analytics para usuário ${userId}`);
       return JSON.parse(cachedData);
     }
     
     try {
-      await this._initializeAuth();
+      await this._initializeAuth(userId);
       
       // Configura a requisição para obter dados de fontes de tráfego
       const trafficRequest = {
@@ -481,20 +586,21 @@ class GoogleAnalyticsService {
    * @param {string} startDate - Data de início (YYYY-MM-DD)
    * @param {string} endDate - Data de fim (YYYY-MM-DD)
    * @param {string} clientId - ID do cliente (opcional)
+   * @param {string} userId - ID do usuário autenticado
    * @returns {Promise<Array>} Dados geográficos
    */
-  async getGeography(startDate, endDate, clientId) {
-    const cacheKey = `ga_geography_${startDate}_${endDate}_${clientId || 'all'}`;
+  async getGeography(startDate, endDate, clientId, userId) {
+    const cacheKey = `ga_geography_${startDate}_${endDate}_${clientId || 'all'}_${userId}`;
     
     // Verifica se há dados em cache
     const cachedData = await redisClient.get(cacheKey);
     if (cachedData) {
-      logger.info('Usando dados em cache para geografia do Google Analytics');
+      logger.info(`Usando dados em cache para geografia do Google Analytics para usuário ${userId}`);
       return JSON.parse(cachedData);
     }
     
     try {
-      await this._initializeAuth();
+      await this._initializeAuth(userId);
       
       // Configura a requisição para obter dados geográficos
       const geoRequest = {
@@ -595,6 +701,120 @@ class GoogleAnalyticsService {
       return result;
     } catch (error) {
       logger.error(`Erro ao obter dados geográficos do Google Analytics: ${error.message}`, { stack: error.stack });
+      throw error;
+    }
+  }
+  
+  /**
+   * Obtém dados de eventos
+   * @param {string} startDate - Data de início (YYYY-MM-DD)
+   * @param {string} endDate - Data de fim (YYYY-MM-DD)
+   * @param {string} clientId - ID do cliente (opcional)
+   * @param {string} eventCategory - Categoria do evento (opcional)
+   * @param {string} userId - ID do usuário autenticado
+   * @returns {Promise<Array>} Dados de eventos
+   */
+  async getEvents(startDate, endDate, clientId, eventCategory, userId) {
+    const cacheKey = `ga_events_${startDate}_${endDate}_${clientId || 'all'}_${eventCategory || 'all'}_${userId}`;
+    
+    // Verifica se há dados em cache
+    const cachedData = await redisClient.get(cacheKey);
+    if (cachedData) {
+      logger.info(`Usando dados em cache para eventos do Google Analytics para usuário ${userId}`);
+      return JSON.parse(cachedData);
+    }
+    
+    try {
+      await this._initializeAuth(userId);
+      
+      // Configura a requisição para obter dados de eventos
+      const eventsRequest = {
+        reportRequests: [
+          {
+            viewId: this.viewId,
+            dateRanges: [
+              {
+                startDate,
+                endDate
+              }
+            ],
+            dimensions: [
+              { name: 'ga:eventCategory' },
+              { name: 'ga:eventAction' },
+              { name: 'ga:eventLabel' }
+            ],
+            metrics: [
+              { expression: 'ga:totalEvents' },
+              { expression: 'ga:uniqueEvents' },
+              { expression: 'ga:eventValue' }
+            ],
+            orderBys: [
+              {
+                fieldName: 'ga:totalEvents',
+                sortOrder: 'DESCENDING'
+              }
+            ]
+          }
+        ]
+      };
+      
+      // Adiciona filtros conforme necessário
+      const filters = [];
+      
+      if (clientId) {
+        filters.push({
+          dimensionName: 'ga:dimension1',
+          operator: 'EXACT',
+          expressions: [clientId]
+        });
+      }
+      
+      if (eventCategory) {
+        filters.push({
+          dimensionName: 'ga:eventCategory',
+          operator: 'EXACT',
+          expressions: [eventCategory]
+        });
+      }
+      
+      if (filters.length > 0) {
+        eventsRequest.reportRequests[0].dimensionFilterClauses = [{
+          filters: filters
+        }];
+      }
+      
+      const response = await this.analyticsReporting.reports.batchGet({ requestBody: eventsRequest });
+      
+      // Processa os resultados
+      const report = response.data.reports[0];
+      let result = [];
+      
+      if (report.data.rows) {
+        result = report.data.rows.map(row => {
+          const category = row.dimensions[0];
+          const action = row.dimensions[1];
+          const label = row.dimensions[2];
+          const totalEvents = parseInt(row.metrics[0].values[0]);
+          const uniqueEvents = parseInt(row.metrics[0].values[1]);
+          const eventValue = parseFloat(row.metrics[0].values[2] || '0');
+          
+          return {
+            category,
+            action,
+            label,
+            totalEvents,
+            uniqueEvents,
+            eventValue
+          };
+        });
+      }
+      
+      // Armazena em cache por 1 hora
+      await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 3600);
+      
+      return result;
+    } catch (error) {
+      logger.error(`Erro ao obter dados de eventos do Google Analytics: ${error.message}`, { stack: error.stack });
       throw error;
     }
   }

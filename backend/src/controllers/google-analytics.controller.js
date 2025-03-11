@@ -9,12 +9,13 @@ const gaService = require('../services/ga.service');
 exports.getSummary = async (req, res) => {
   try {
     const { startDate, endDate, clientId } = req.query;
+    const userId = req.user.id;
     
     if (!startDate || !endDate) {
       return res.status(400).json({ message: 'Datas de início e fim são obrigatórias' });
     }
     
-    const data = await gaService.getSummary(startDate, endDate, clientId);
+    const data = await gaService.getSummary(startDate, endDate, clientId, userId);
     res.json(data);
   } catch (error) {
     logger.error(`Erro ao obter resumo do Google Analytics: ${error.message}`, { stack: error.stack });
@@ -30,12 +31,13 @@ exports.getSummary = async (req, res) => {
 exports.getPerformance = async (req, res) => {
   try {
     const { startDate, endDate, clientId } = req.query;
+    const userId = req.user.id;
     
     if (!startDate || !endDate) {
       return res.status(400).json({ message: 'Datas de início e fim são obrigatórias' });
     }
     
-    const data = await gaService.getPerformance(startDate, endDate, clientId);
+    const data = await gaService.getPerformance(startDate, endDate, clientId, userId);
     res.json(data);
   } catch (error) {
     logger.error(`Erro ao obter desempenho do Google Analytics: ${error.message}`, { stack: error.stack });
@@ -51,12 +53,13 @@ exports.getPerformance = async (req, res) => {
 exports.getTrafficSources = async (req, res) => {
   try {
     const { startDate, endDate, clientId } = req.query;
+    const userId = req.user.id;
     
     if (!startDate || !endDate) {
       return res.status(400).json({ message: 'Datas de início e fim são obrigatórias' });
     }
     
-    const data = await gaService.getTrafficSources(startDate, endDate, clientId);
+    const data = await gaService.getTrafficSources(startDate, endDate, clientId, userId);
     res.json(data);
   } catch (error) {
     logger.error(`Erro ao obter fontes de tráfego do Google Analytics: ${error.message}`, { stack: error.stack });
@@ -72,12 +75,13 @@ exports.getTrafficSources = async (req, res) => {
 exports.getTopPages = async (req, res) => {
   try {
     const { startDate, endDate, clientId, limit } = req.query;
+    const userId = req.user.id;
     
     if (!startDate || !endDate) {
       return res.status(400).json({ message: 'Datas de início e fim são obrigatórias' });
     }
     
-    const data = await gaService.getTopPages(startDate, endDate, clientId, limit);
+    const data = await gaService.getTopPages(startDate, endDate, clientId, limit, userId);
     res.json(data);
   } catch (error) {
     logger.error(`Erro ao obter páginas mais visitadas do Google Analytics: ${error.message}`, { stack: error.stack });
@@ -93,12 +97,13 @@ exports.getTopPages = async (req, res) => {
 exports.getDemographics = async (req, res) => {
   try {
     const { startDate, endDate, clientId } = req.query;
+    const userId = req.user.id;
     
     if (!startDate || !endDate) {
       return res.status(400).json({ message: 'Datas de início e fim são obrigatórias' });
     }
     
-    const data = await gaService.getDemographics(startDate, endDate, clientId);
+    const data = await gaService.getDemographics(startDate, endDate, clientId, userId);
     res.json(data);
   } catch (error) {
     logger.error(`Erro ao obter dados demográficos do Google Analytics: ${error.message}`, { stack: error.stack });
@@ -114,12 +119,13 @@ exports.getDemographics = async (req, res) => {
 exports.getEvents = async (req, res) => {
   try {
     const { startDate, endDate, clientId, eventCategory } = req.query;
+    const userId = req.user.id;
     
     if (!startDate || !endDate) {
       return res.status(400).json({ message: 'Datas de início e fim são obrigatórias' });
     }
     
-    const data = await gaService.getEvents(startDate, endDate, clientId, eventCategory);
+    const data = await gaService.getEvents(startDate, endDate, clientId, eventCategory, userId);
     res.json(data);
   } catch (error) {
     logger.error(`Erro ao obter dados de eventos do Google Analytics: ${error.message}`, { stack: error.stack });
