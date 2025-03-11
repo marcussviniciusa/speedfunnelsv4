@@ -26,20 +26,19 @@ REDIS_PASSWORD=senha_segura_redis
 # JWT
 JWT_SECRET=chave_secreta_muito_segura
 
-# Meta Ads
+# Meta Business Integration
 META_APP_ID=seu_app_id
 META_APP_SECRET=seu_app_secret
-META_ACCESS_TOKEN=seu_token_de_acesso
-META_AD_ACCOUNT_ID=seu_id_da_conta_de_anuncios
+META_REDIRECT_URI=https://api.seu-dominio.com/api/meta-business-auth/callback
 
-# Google Analytics
+# Google OAuth Integration
 GOOGLE_CLIENT_ID=seu_client_id
 GOOGLE_CLIENT_SECRET=seu_client_secret
 GOOGLE_REDIRECT_URL=https://api.seu-dominio.com/api/auth/google/callback
-GOOGLE_SERVICE_ACCOUNT_KEY=chave_da_conta_de_servico
-GA_VIEW_ID=seu_view_id
-GA_CLIENT_EMAIL=email_da_conta_de_servico
-GA_PRIVATE_KEY="chave_privada_da_conta_de_servico"
+
+# Frontend Configuration
+FRONTEND_URL=https://seu-dominio.com
+API_URL=https://api.seu-dominio.com
 
 # Domínios (produção)
 FRONTEND_DOMAIN=seu-dominio.com
@@ -154,23 +153,46 @@ docker-compose -f docker-compose.prod.yml exec postgres pg_dump -U ${POSTGRES_US
 cat backup_arquivo.sql | docker-compose -f docker-compose.prod.yml exec -T postgres psql -U ${POSTGRES_USER} ${POSTGRES_DB}
 ```
 
-## 7. Testando as Integrações de Analytics
+## 7. Configuração e Teste das Integrações OAuth
 
-Para testar as integrações após o deploy:
+### 7.1. Configuração do Google Analytics OAuth
 
-1. Verifique a conexão com o Google Analytics:
+O SpeedFunnels v4 utiliza autenticação OAuth para acessar dados do Google Analytics, permitindo que os usuários autorizem o acesso através de suas próprias contas:
+
+1. Acesse o [Google Cloud Console](https://console.cloud.google.com/) e crie um novo projeto ou selecione um existente
+2. Ative a API do Google Analytics na biblioteca de APIs
+3. Configure as credenciais OAuth:
+   - Configure a tela de consentimento OAuth (tipo externo)
+   - Crie credenciais OAuth Client ID (tipo aplicação web)
+   - Adicione URLs de redirecionamento autorizados: `https://api.seu-dominio.com/api/auth/google/callback`
+4. Preencha as variáveis de ambiente com as credenciais obtidas
+
+### 7.2. Configuração do Meta Business OAuth
+
+Similar à integração com o Google Analytics, o Meta Business utiliza fluxo OAuth:
+
+1. Acesse o [Meta for Developers](https://developers.facebook.com/)
+2. Registre um aplicativo e configure as permissões necessárias para Business SDK
+3. Configure a URL de redirecionamento: `https://api.seu-dominio.com/api/meta-business-auth/callback`
+4. Preencha as variáveis de ambiente no arquivo `.env`
+
+### 7.3. Testando as Integrações após Deploy
+
+Para testar as integrações OAuth após o deploy:
+
+1. Teste o fluxo de autenticação do Google Analytics:
 ```bash
-docker-compose -f docker-compose.prod.yml exec api node src/scripts/test-ga-connection.js
+docker-compose -f docker-compose.prod.yml exec api node src/scripts/test-google-oauth.js
 ```
 
-2. Verifique a conexão com o Meta Ads:
+2. Teste o fluxo de autenticação do Meta Business:
 ```bash
-docker-compose -f docker-compose.prod.yml exec api node src/scripts/test-meta-ads-connection.js
+docker-compose -f docker-compose.prod.yml exec api node src/scripts/test-meta-oauth.js
 ```
 
-3. Verifique ambas as conexões:
+3. Verifique ambas as conexões OAuth:
 ```bash
-docker-compose -f docker-compose.prod.yml exec api node src/scripts/test-analytics-connections.js
+docker-compose -f docker-compose.prod.yml exec api node src/scripts/test-oauth-connections.js
 ```
 
 ## 8. Solução de Problemas
