@@ -1,6 +1,5 @@
 const axios = require('axios');
 const { DateTime } = require('luxon');
-const config = require('../config/config');
 const logger = require('../utils/logger');
 const { redisClient } = require('../utils/redis');
 
@@ -9,9 +8,7 @@ const { redisClient } = require('../utils/redis');
  */
 class MetaAdsService {
   constructor() {
-    this.apiUrl = 'https://graph.facebook.com/v18.0';
-    this.accessToken = config.meta.accessToken;
-    this.adAccountId = config.meta.adAccountId;
+    this.apiUrl = 'https://graph.facebook.com/v19.0';
   }
 
   /**
@@ -19,10 +16,21 @@ class MetaAdsService {
    * @param {string} startDate - Data de início (YYYY-MM-DD)
    * @param {string} endDate - Data de fim (YYYY-MM-DD)
    * @param {string} clientId - ID do cliente (opcional)
+   * @param {Object} metaAccount - Objeto com as credenciais da conta Meta
    * @returns {Promise<Object>} Dados resumidos
    */
-  async getSummary(startDate, endDate, clientId) {
-    const cacheKey = `meta_ads_summary_${startDate}_${endDate}_${clientId || 'all'}`;
+  async getSummary(startDate, endDate, clientId, metaAccount) {
+    const { accessToken, adAccounts } = metaAccount;
+    let adAccountId = null;
+    
+    // Seleciona a primeira conta de anúncios disponível
+    if (adAccounts && adAccounts.length > 0) {
+      adAccountId = adAccounts[0].id;
+    } else {
+      throw new Error('Nenhuma conta de anúncios disponível');
+    }
+    
+    const cacheKey = `meta_ads_summary_${startDate}_${endDate}_${clientId || 'all'}_${adAccountId}`;
     
     // Verifica se há dados em cache
     const cachedData = await redisClient.get(cacheKey);
@@ -33,17 +41,17 @@ class MetaAdsService {
     
     try {
       // Prepara parâmetros de consulta
-      const params = this._getQueryParams(startDate, endDate, clientId);
+      const params = this._getQueryParams(startDate, endDate, clientId, accessToken);
       
       // Adiciona métricas para o resumo
       params.fields = 'impressions,clicks,ctr,spend,cpc,conversions,cost_per_conversion,conversion_rate,roas';
       
       // Faz a chamada à API
-      const response = await this._makeApiRequest(`${this.adAccountId}/insights`, params);
+      const response = await this._makeApiRequest(`${adAccountId}/insights`, params);
       
       // Calcula mudanças percentuais comparando com período anterior
       const previousPeriod = this._getPreviousPeriod(startDate, endDate);
-      const previousResponse = await this._makeApiRequest(`${this.adAccountId}/insights`, {
+      const previousResponse = await this._makeApiRequest(`${adAccountId}/insights`, {
         ...params,
         time_range: previousPeriod
       });
@@ -118,10 +126,21 @@ class MetaAdsService {
    * @param {string} startDate - Data de início (YYYY-MM-DD)
    * @param {string} endDate - Data de fim (YYYY-MM-DD)
    * @param {string} clientId - ID do cliente (opcional)
+   * @param {Object} metaAccount - Objeto com as credenciais da conta Meta
    * @returns {Promise<Array>} Dados de desempenho por dia
    */
-  async getPerformance(startDate, endDate, clientId) {
-    const cacheKey = `meta_ads_performance_${startDate}_${endDate}_${clientId || 'all'}`;
+  async getPerformance(startDate, endDate, clientId, metaAccount) {
+    const { accessToken, adAccounts } = metaAccount;
+    let adAccountId = null;
+    
+    // Seleciona a primeira conta de anúncios disponível
+    if (adAccounts && adAccounts.length > 0) {
+      adAccountId = adAccounts[0].id;
+    } else {
+      throw new Error('Nenhuma conta de anúncios disponível');
+    }
+    
+    const cacheKey = `meta_ads_performance_${startDate}_${endDate}_${clientId || 'all'}_${adAccountId}`;
     
     // Verifica se há dados em cache
     const cachedData = await redisClient.get(cacheKey);
@@ -132,14 +151,14 @@ class MetaAdsService {
     
     try {
       // Prepara parâmetros de consulta
-      const params = this._getQueryParams(startDate, endDate, clientId);
+      const params = this._getQueryParams(startDate, endDate, clientId, accessToken);
       
       // Configura para dados diários
       params.time_increment = 1;
       params.fields = 'date_start,impressions,clicks,ctr,spend,cpc,conversions,cost_per_conversion';
       
       // Faz a chamada à API
-      const response = await this._makeApiRequest(`${this.adAccountId}/insights`, params);
+      const response = await this._makeApiRequest(`${adAccountId}/insights`, params);
       
       // Formata os resultados
       const result = response.data.map(day => ({
@@ -168,10 +187,21 @@ class MetaAdsService {
    * @param {string} startDate - Data de início (YYYY-MM-DD)
    * @param {string} endDate - Data de fim (YYYY-MM-DD)
    * @param {string} clientId - ID do cliente (opcional)
+   * @param {Object} metaAccount - Objeto com as credenciais da conta Meta
    * @returns {Promise<Array>} Lista de campanhas com métricas
    */
-  async getCampaigns(startDate, endDate, clientId) {
-    const cacheKey = `meta_ads_campaigns_${startDate}_${endDate}_${clientId || 'all'}`;
+  async getCampaigns(startDate, endDate, clientId, metaAccount) {
+    const { accessToken, adAccounts } = metaAccount;
+    let adAccountId = null;
+    
+    // Seleciona a primeira conta de anúncios disponível
+    if (adAccounts && adAccounts.length > 0) {
+      adAccountId = adAccounts[0].id;
+    } else {
+      throw new Error('Nenhuma conta de anúncios disponível');
+    }
+    
+    const cacheKey = `meta_ads_campaigns_${startDate}_${endDate}_${clientId || 'all'}_${adAccountId}`;
     
     // Verifica se há dados em cache
     const cachedData = await redisClient.get(cacheKey);
@@ -182,9 +212,10 @@ class MetaAdsService {
     
     try {
       // Obtém a lista de campanhas
-      const campaignsResponse = await this._makeApiRequest(`${this.adAccountId}/campaigns`, {
+      const campaignsResponse = await this._makeApiRequest(`${adAccountId}/campaigns`, {
         fields: 'id,name,status,objective,daily_budget,lifetime_budget',
-        limit: 100
+        limit: 100,
+        access_token: accessToken
       });
       
       // Filtra campanhas por cliente se necessário
@@ -195,11 +226,11 @@ class MetaAdsService {
       }
       
       // Obtém as métricas para cada campanha
-      const insightsParams = this._getQueryParams(startDate, endDate);
+      const insightsParams = this._getQueryParams(startDate, endDate, clientId, accessToken);
       insightsParams.fields = 'campaign_id,impressions,clicks,ctr,spend,cpc,conversions,cost_per_conversion,conversion_rate';
       insightsParams.level = 'campaign';
       
-      const insightsResponse = await this._makeApiRequest(`${this.adAccountId}/insights`, insightsParams);
+      const insightsResponse = await this._makeApiRequest(`${adAccountId}/insights`, insightsParams);
       
       // Mapeia as métricas para cada campanha
       const insightsMap = {};
@@ -243,11 +274,21 @@ class MetaAdsService {
    * @param {string} startDate - Data de início (YYYY-MM-DD)
    * @param {string} endDate - Data de fim (YYYY-MM-DD)
    * @param {string} clientId - ID do cliente (opcional)
-   * @param {string} campaignId - ID da campanha (opcional)
+   * @param {Object} metaAccount - Objeto com as credenciais da conta Meta
    * @returns {Promise<Array>} Lista de conjuntos de anúncios com métricas
    */
-  async getAdSets(startDate, endDate, clientId, campaignId) {
-    const cacheKey = `meta_ads_adsets_${startDate}_${endDate}_${clientId || 'all'}_${campaignId || 'all'}`;
+  async getAdSets(startDate, endDate, clientId, metaAccount) {
+    const { accessToken, adAccounts } = metaAccount;
+    let adAccountId = null;
+    
+    // Seleciona a primeira conta de anúncios disponível
+    if (adAccounts && adAccounts.length > 0) {
+      adAccountId = adAccounts[0].id;
+    } else {
+      throw new Error('Nenhuma conta de anúncios disponível');
+    }
+    
+    const cacheKey = `meta_ads_adsets_${startDate}_${endDate}_${clientId || 'all'}_${adAccountId}`;
     
     // Verifica se há dados em cache
     const cachedData = await redisClient.get(cacheKey);
@@ -260,15 +301,12 @@ class MetaAdsService {
       // Prepara parâmetros para a consulta de conjuntos de anúncios
       const adSetsParams = {
         fields: 'id,name,status,campaign_id,targeting,daily_budget,lifetime_budget',
-        limit: 100
+        limit: 100,
+        access_token: accessToken
       };
       
-      if (campaignId) {
-        adSetsParams.campaign_id = campaignId;
-      }
-      
       // Obtém a lista de conjuntos de anúncios
-      const adSetsResponse = await this._makeApiRequest(`${this.adAccountId}/adsets`, adSetsParams);
+      const adSetsResponse = await this._makeApiRequest(`${adAccountId}/adsets`, adSetsParams);
       
       // Filtra conjuntos de anúncios por cliente se necessário
       let adSets = adSetsResponse.data;
@@ -277,16 +315,11 @@ class MetaAdsService {
       }
       
       // Obtém as métricas para cada conjunto de anúncios
-      const insightsParams = this._getQueryParams(startDate, endDate);
+      const insightsParams = this._getQueryParams(startDate, endDate, clientId, accessToken);
       insightsParams.fields = 'adset_id,campaign_id,impressions,clicks,ctr,spend,cpc,conversions,cost_per_conversion,conversion_rate';
       insightsParams.level = 'adset';
       
-      // Adiciona filtro de campanha se necessário
-      if (campaignId) {
-        insightsParams.filtering = JSON.stringify([{ field: 'campaign.id', operator: 'EQUAL', value: campaignId }]);
-      }
-      
-      const insightsResponse = await this._makeApiRequest(`${this.adAccountId}/insights`, insightsParams);
+      const insightsResponse = await this._makeApiRequest(`${adAccountId}/insights`, insightsParams);
       
       // Mapeia as métricas para cada conjunto de anúncios
       const insightsMap = {};
@@ -298,7 +331,8 @@ class MetaAdsService {
       const campaignIds = [...new Set(adSets.map(adSet => adSet.campaign_id))];
       const campaignsResponse = await this._makeApiRequest('', {
         ids: campaignIds.join(','),
-        fields: 'id,name'
+        fields: 'id,name',
+        access_token: accessToken
       });
       
       const campaignNames = {};
@@ -343,12 +377,21 @@ class MetaAdsService {
    * @param {string} startDate - Data de início (YYYY-MM-DD)
    * @param {string} endDate - Data de fim (YYYY-MM-DD)
    * @param {string} clientId - ID do cliente (opcional)
-   * @param {string} campaignId - ID da campanha (opcional)
-   * @param {string} adSetId - ID do conjunto de anúncios (opcional)
+   * @param {Object} metaAccount - Objeto com as credenciais da conta Meta
    * @returns {Promise<Array>} Lista de anúncios com métricas
    */
-  async getAds(startDate, endDate, clientId, campaignId, adSetId) {
-    const cacheKey = `meta_ads_ads_${startDate}_${endDate}_${clientId || 'all'}_${campaignId || 'all'}_${adSetId || 'all'}`;
+  async getAds(startDate, endDate, clientId, metaAccount) {
+    const { accessToken, adAccounts } = metaAccount;
+    let adAccountId = null;
+    
+    // Seleciona a primeira conta de anúncios disponível
+    if (adAccounts && adAccounts.length > 0) {
+      adAccountId = adAccounts[0].id;
+    } else {
+      throw new Error('Nenhuma conta de anúncios disponível');
+    }
+    
+    const cacheKey = `meta_ads_ads_${startDate}_${endDate}_${clientId || 'all'}_${adAccountId}`;
     
     // Verifica se há dados em cache
     const cachedData = await redisClient.get(cacheKey);
@@ -361,22 +404,19 @@ class MetaAdsService {
       // Prepara parâmetros para a consulta de anúncios
       const adsParams = {
         fields: 'id,name,status,adset_id,creative',
-        limit: 100
+        limit: 100,
+        access_token: accessToken
       };
       
-      if (adSetId) {
-        adsParams.adset_id = adSetId;
-      }
-      
       // Obtém a lista de anúncios
-      const adsResponse = await this._makeApiRequest(`${this.adAccountId}/ads`, adsParams);
+      const adsResponse = await this._makeApiRequest(`${adAccountId}/ads`, adsParams);
       
       // Filtra anúncios
       let ads = adsResponse.data;
       
-      if (campaignId || clientId) {
-        // Se temos restrições de campanha ou cliente, precisamos obter os conjuntos de anúncios primeiro
-        const adSets = await this.getAdSets(startDate, endDate, clientId, campaignId);
+      if (clientId) {
+        // Se temos restrições de cliente, precisamos obter os conjuntos de anúncios primeiro
+        const adSets = await this.getAdSets(startDate, endDate, clientId, metaAccount);
         const adSetIds = adSets.map(adSet => adSet.id);
         
         // Filtra anúncios pelos conjuntos de anúncios
@@ -384,24 +424,11 @@ class MetaAdsService {
       }
       
       // Obtém as métricas para cada anúncio
-      const insightsParams = this._getQueryParams(startDate, endDate);
+      const insightsParams = this._getQueryParams(startDate, endDate, clientId, accessToken);
       insightsParams.fields = 'ad_id,adset_id,impressions,clicks,ctr,spend,cpc,conversions,cost_per_conversion,conversion_rate';
       insightsParams.level = 'ad';
       
-      // Adiciona filtros se necessário
-      const filtering = [];
-      if (campaignId) {
-        filtering.push({ field: 'campaign.id', operator: 'EQUAL', value: campaignId });
-      }
-      if (adSetId) {
-        filtering.push({ field: 'adset.id', operator: 'EQUAL', value: adSetId });
-      }
-      
-      if (filtering.length > 0) {
-        insightsParams.filtering = JSON.stringify(filtering);
-      }
-      
-      const insightsResponse = await this._makeApiRequest(`${this.adAccountId}/insights`, insightsParams);
+      const insightsResponse = await this._makeApiRequest(`${adAccountId}/insights`, insightsParams);
       
       // Mapeia as métricas para cada anúncio
       const insightsMap = {};
@@ -413,7 +440,8 @@ class MetaAdsService {
       const adSetIds = [...new Set(ads.map(ad => ad.adset_id))];
       const adSetsResponse = await this._makeApiRequest('', {
         ids: adSetIds.join(','),
-        fields: 'id,name,campaign_id'
+        fields: 'id,name,campaign_id',
+        access_token: accessToken
       });
       
       const adSetInfo = {};
@@ -425,7 +453,8 @@ class MetaAdsService {
       const campaignIds = [...new Set(Object.values(adSetInfo).map(adSet => adSet.campaign_id))];
       const campaignsResponse = await this._makeApiRequest('', {
         ids: campaignIds.join(','),
-        fields: 'id,name'
+        fields: 'id,name',
+        access_token: accessToken
       });
       
       const campaignInfo = {};
@@ -469,58 +498,76 @@ class MetaAdsService {
   }
 
   /**
-   * Métodos auxiliares
-   */
-
-  /**
-   * Cria os parâmetros de consulta para as chamadas de API
+   * Obtém parâmetros de consulta padrão para requisições à API
    * @param {string} startDate - Data de início (YYYY-MM-DD)
    * @param {string} endDate - Data de fim (YYYY-MM-DD)
    * @param {string} clientId - ID do cliente (opcional)
+   * @param {string} accessToken - Token de acesso
    * @returns {Object} Parâmetros de consulta
    * @private
    */
-  _getQueryParams(startDate, endDate, clientId) {
-    const params = {
-      access_token: this.accessToken,
-      time_range: JSON.stringify({
-        since: startDate,
-        until: endDate
-      })
+  _getQueryParams(startDate, endDate, clientId, accessToken) {
+    // Configura o intervalo de datas
+    const timeRange = {
+      since: startDate,
+      until: endDate
     };
     
-    // Adiciona filtros para cliente se necessário
+    const params = {
+      access_token: accessToken,
+      time_range: JSON.stringify(timeRange),
+      date_preset: 'lifetime',
+      level: 'account'
+    };
+    
+    // Filtra por cliente se especificado
     if (clientId) {
-      // Aqui seria adicionada a lógica para filtrar por cliente
-      // Isso depende de como os clientes estão mapeados nas campanhas
+      // Implemente o filtro por cliente conforme necessário
     }
     
     return params;
   }
 
   /**
-   * Faz uma chamada à API do Meta Ads
-   * @param {string} endpoint - Endpoint relativo da API
-   * @param {Object} params - Parâmetros da consulta
+   * Realiza uma requisição à API do Meta Ads
+   * @param {string} endpoint - Endpoint da API
+   * @param {Object} params - Parâmetros da requisição
    * @returns {Promise<Object>} Resposta da API
    * @private
    */
   async _makeApiRequest(endpoint, params) {
     try {
-      const url = endpoint.startsWith('http') ? endpoint : `${this.apiUrl}/${endpoint}`;
-      
-      const response = await axios.get(url, { params });
+      const response = await axios.get(`${this.apiUrl}/${endpoint}`, { params });
       return response.data;
     } catch (error) {
-      logger.error(`Erro na chamada à API do Meta Ads: ${error.message}`, { stack: error.stack });
+      logger.error(`Erro na requisição à API do Meta Ads: ${error.message}`, {
+        endpoint,
+        errorResponse: error.response?.data
+      });
       
-      // Verifica se é um erro da API do Facebook
-      if (error.response && error.response.data && error.response.data.error) {
-        throw new Error(`Meta Ads API error: ${error.response.data.error.message}`);
-      }
-      
-      throw error;
+      throw new Error(error.response?.data?.error?.message || error.message);
     }
+  }
+  
+  /**
+   * Calcula o período anterior para comparação
+   * @param {string} startDate - Data de início (YYYY-MM-DD)
+   * @param {string} endDate - Data de fim (YYYY-MM-DD)
+   * @returns {Object} Período anterior
+   * @private
+   */
+  _getPreviousPeriod(startDate, endDate) {
+    const start = DateTime.fromISO(startDate);
+    const end = DateTime.fromISO(endDate);
+    const duration = end.diff(start).as('days');
+    
+    const previousEnd = start.minus({ days: 1 });
+    const previousStart = previousEnd.minus({ days: duration });
+    
+    return {
+      since: previousStart.toFormat('yyyy-MM-dd'),
+      until: previousEnd.toFormat('yyyy-MM-dd')
+    };
   }
 
   /**
@@ -539,27 +586,6 @@ class MetaAdsService {
     }
     
     return parseFloat(((currentVal - previousVal) / previousVal * 100).toFixed(2));
-  }
-
-  /**
-   * Obtém o período anterior para comparações
-   * @param {string} startDate - Data de início (YYYY-MM-DD)
-   * @param {string} endDate - Data de fim (YYYY-MM-DD)
-   * @returns {Object} Período anterior no formato esperado pela API
-   * @private
-   */
-  _getPreviousPeriod(startDate, endDate) {
-    const start = DateTime.fromISO(startDate);
-    const end = DateTime.fromISO(endDate);
-    const duration = end.diff(start).as('days');
-    
-    const previousEnd = start.minus({ days: 1 });
-    const previousStart = previousEnd.minus({ days: duration });
-    
-    return {
-      since: previousStart.toFormat('yyyy-MM-dd'),
-      until: previousEnd.toFormat('yyyy-MM-dd')
-    };
   }
 
   /**

@@ -64,17 +64,50 @@ exports.checkGoogleAnalyticsCredentials = (req, res, next) => {
 };
 
 /**
- * Verifica se as credenciais do Meta Ads estão configuradas
+ * Verifica se o usuário está autenticado com o Meta Business
  */
-exports.checkMetaAdsCredentials = (req, res, next) => {
-  const config = require('../config/config');
-  
-  if (!config.meta.accessToken || !config.meta.adAccountId) {
-    logger.error('Credenciais do Meta Ads não configuradas');
-    return res.status(503).json({ 
-      message: 'Serviço do Meta Ads não configurado corretamente' 
+exports.checkMetaAdsCredentials = async (req, res, next) => {
+  try {
+    const BusinessAccount = require('../models/business-account.model');
+    
+    // Obter ID do usuário autenticado a partir do token JWT
+    const userId = req.user.id;
+    
+    // Verificar se existe pelo menos uma conta de negócios Meta conectada
+    const businessAccount = await BusinessAccount.findOne({
+      where: {
+        userId,
+        provider: 'meta'
+      }
+    });
+    
+    if (!businessAccount) {
+      return res.status(403).json({
+        message: 'Você precisa conectar sua conta do Facebook Ads para acessar esses dados',
+        requiresAuth: true
+      });
+    }
+    
+    // Verificar se o token ainda é válido
+    if (businessAccount.expiresAt && new Date(businessAccount.expiresAt) < new Date()) {
+      return res.status(403).json({
+        message: 'Seu token de acesso expirou. Por favor, reconecte sua conta do Facebook Ads',
+        requiresAuth: true
+      });
+    }
+    
+    // Adicionar informações da conta ao objeto de requisição para uso nos controladores
+    req.metaAccount = {
+      accessToken: businessAccount.accessToken,
+      businessId: businessAccount.businessId,
+      adAccounts: businessAccount.metadata?.adAccounts || []
+    };
+    
+    next();
+  } catch (error) {
+    logger.error('Erro ao verificar credenciais do Meta Ads:', error);
+    return res.status(500).json({
+      message: 'Erro ao verificar autenticação com Facebook Ads'
     });
   }
-  
-  next();
 };

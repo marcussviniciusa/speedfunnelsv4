@@ -8,6 +8,9 @@ const router = express.Router();
  * Rotas para autenticação com o Login do Facebook para Empresas
  */
 
+// Rota para iniciar processo de login com Facebook
+router.post('/initiate-login', requireAuth, metaBusinessAuthController.initiateLogin);
+
 // Rota para trocar código de autorização por token de acesso
 router.post('/exchange-token', requireAuth, metaBusinessAuthController.exchangeToken);
 
@@ -28,5 +31,14 @@ router.get('/callback', metaBusinessAuthController.handleCallback);
 
 // Rota para completar autenticação
 router.post('/complete-auth', requireAuth, metaBusinessAuthController.completeAuth);
+
+// Rota para obter informações da integração (scopes, app ID, etc)
+router.get('/integration-info', requireAuth, metaBusinessAuthController.getMetaIntegrationInfo);
+
+// Rota para verificar a validade de um token específico
+router.get('/verify-token/:accountId', requireAuth, metaBusinessAuthController.verifyToken);
+
+// Rota para obter as permissões necessárias para a integração
+router.get('/required-permissions', requireAuth, metaBusinessAuthController.getRequiredPermissions);
 
 module.exports = router;

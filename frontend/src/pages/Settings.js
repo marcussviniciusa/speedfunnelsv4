@@ -348,33 +348,30 @@ const Settings = () => {
               
               <Grid container spacing={3}>
                 <Grid item xs={12}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={apiSettings.metaAdsEnabled}
-                        onChange={handleApiChange}
-                        name="metaAdsEnabled"
-                      />
-                    }
-                    label="Habilitar integração com Facebook Ads"
-                  />
-                </Grid>
-                
-                {apiSettings.metaAdsEnabled && (
-                  <Grid item xs={12}>
-                    <MetaBusinessLogin
-                      onLoginSuccess={(data) => {
-                        setSuccess('Conectado com sucesso ao Facebook Ads!');
-                        if (data.adAccounts && data.adAccounts.length > 0) {
+                  <Typography variant="body1" gutterBottom>
+                    Use o Login do Facebook para Empresas para conectar sua conta do Facebook Ads e obter dados de campanhas e métricas automaticamente.
+                  </Typography>
+                  <MetaBusinessLogin
+                    onLoginSuccess={(data) => {
+                      setSuccess('Conectado com sucesso ao Facebook Ads!');
+                      if (data && data.businessAccounts && data.businessAccounts.length > 0) {
+                        const adAccounts = [];
+                        data.businessAccounts.forEach(business => {
+                          if (business.adAccounts && business.adAccounts.length > 0) {
+                            adAccounts.push(...business.adAccounts);
+                          }
+                        });
+                        
+                        if (adAccounts.length > 0) {
                           setApiSettings({
                             ...apiSettings,
-                            metaAdAccountId: data.adAccounts[0].id
+                            metaAdAccountId: adAccounts[0].id
                           });
                         }
-                      }}
-                    />
-                  </Grid>
-                )}
+                      }
+                    }}
+                  />
+                </Grid>
               </Grid>
               
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>

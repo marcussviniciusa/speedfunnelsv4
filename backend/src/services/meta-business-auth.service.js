@@ -10,10 +10,19 @@ const logger = require('../utils/logger');
  */
 class MetaBusinessAuthService {
   constructor() {
-    this.baseApiUrl = 'https://graph.facebook.com/v19.0';
+    // Atualização para a versão mais recente da API do Meta
+    this.baseApiUrl = 'https://graph.facebook.com/v22.0';
     this.appId = process.env.META_APP_ID;
     this.appSecret = process.env.META_APP_SECRET;
     this.redirectUri = process.env.META_REDIRECT_URI;
+    
+    // Lista de permissões necessárias para integração completa
+    this.requiredPermissions = [
+      'ads_management',
+      'ads_read', 
+      'business_management',
+      'read_insights'
+    ];
   }
 
   /**
@@ -48,13 +57,26 @@ class MetaBusinessAuthService {
 
       // Se o token for de curta duração, troque por um de longa duração
       if (response.data.access_token) {
-        return await this.exchangeForLongLivedToken(response.data.access_token);
+        const tokenData = await this.exchangeForLongLivedToken(response.data.access_token);
+        
+        // Verificar as permissões concedidas
+        await this.verifyPermissions(tokenData.accessToken);
+        
+        return tokenData;
       }
 
       throw new Error('Token de acesso não recebido do Facebook');
     } catch (error) {
-      logger.error('Erro ao trocar código por token:', error);
-      throw new Error(error.response?.data?.error?.message || error.message);
+      if (error.response?.data?.error?.code === 190) {
+        logger.error('Token inválido ou expirado:', error.response.data.error);
+        throw new Error('Token do Facebook inválido ou expirado. Por favor, tente autenticar novamente.');
+      } else if (error.response?.data?.error?.code === 4) {
+        logger.error('Limite de requisição excedido:', error.response.data.error);
+        throw new Error('Limite de requisições ao Facebook excedido. Por favor, tente novamente mais tarde.');
+      } else {
+        logger.error('Erro ao trocar código por token:', error);
+        throw new Error(error.response?.data?.error?.message || error.message);
+      }
     }
   }
 
@@ -74,6 +96,10 @@ class MetaBusinessAuthService {
         }
       });
 
+      // Registrar a expiração para notificações futuras
+      const expiresAt = new Date(Date.now() + (response.data.expires_in * 1000));
+      logger.info(`Token de longa duração obtido, expira em: ${expiresAt.toISOString()}`);
+
       return {
         accessToken: response.data.access_token,
         tokenType: response.data.token_type || 'bearer',
@@ -81,7 +107,59 @@ class MetaBusinessAuthService {
       };
     } catch (error) {
       logger.error('Erro ao trocar por token de longa duração:', error);
+      
+      // Melhor tratamento de erros específicos do Facebook
+      if (error.response?.data?.error) {
+        const fbError = error.response.data.error;
+        if (fbError.code === 190) {
+          throw new Error('Token inválido ou expirado. Por favor, tente autenticar novamente.');
+        } else if (fbError.code === 10) {
+          throw new Error('Erro de permissão. Verifique se as permissões necessárias foram concedidas.');
+        }
+      }
+      
       throw new Error(error.response?.data?.error?.message || error.message);
+    }
+  }
+
+  /**
+   * Verifica se o token tem as permissões necessárias
+   * @param {string} accessToken - Token de acesso
+   * @returns {Promise<boolean>} - Retorna true se todas as permissões necessárias estão presentes
+   */
+  async verifyPermissions(accessToken) {
+    try {
+      const response = await axios.get(`${this.baseApiUrl}/me/permissions`, {
+        params: {
+          access_token: accessToken
+        }
+      });
+
+      const grantedPermissions = response.data.data || [];
+      const permissionMap = {};
+      
+      // Criar um mapa das permissões concedidas e seus status
+      grantedPermissions.forEach(perm => {
+        permissionMap[perm.permission] = perm.status === 'granted';
+      });
+      
+      // Verificar se todas as permissões necessárias foram concedidas
+      const missingPermissions = this.requiredPermissions.filter(
+        perm => !permissionMap[perm]
+      );
+      
+      if (missingPermissions.length > 0) {
+        logger.warn('Permissões necessárias não concedidas:', missingPermissions);
+        throw new Error(`Permissões necessárias não concedidas: ${missingPermissions.join(', ')}. Por favor, autorize todas as permissões solicitadas.`);
+      }
+      
+      return true;
+    } catch (error) {
+      if (error.message.includes('Permissões necessárias não concedidas')) {
+        throw error; // Re-throw nosso erro customizado
+      }
+      logger.error('Erro ao verificar permissões:', error);
+      throw new Error('Erro ao verificar permissões do token. ' + (error.response?.data?.error?.message || error.message));
     }
   }
 
@@ -96,12 +174,13 @@ class MetaBusinessAuthService {
       const meResponse = await axios.get(`${this.baseApiUrl}/me`, {
         params: {
           access_token: accessToken,
-          fields: 'id,name'
+          fields: 'id,name,email'
         }
       });
 
       const userId = meResponse.data.id;
       const userName = meResponse.data.name;
+      const userEmail = meResponse.data.email;
 
       // Obter contas de negócios associadas ao usuário
       const businessAccountsResponse = await axios.get(
@@ -109,7 +188,7 @@ class MetaBusinessAuthService {
         {
           params: {
             access_token: accessToken,
-            fields: 'id,name,verification_status,owner_business'
+            fields: 'id,name,verification_status,owner_business,created_time,primary_page'
           }
         }
       );
@@ -118,6 +197,7 @@ class MetaBusinessAuthService {
       const result = {
         userId,
         userName,
+        userEmail,
         businessAccounts: []
       };
 
@@ -128,17 +208,32 @@ class MetaBusinessAuthService {
           {
             params: {
               access_token: accessToken,
-              fields: 'id,name,account_status,account_id,business,currency,timezone_name'
+              fields: 'id,name,account_status,account_id,business,currency,timezone_name,amount_spent,balance,insights.date_preset(LAST_30D){spend}'
             }
           }
         );
 
         const adAccounts = adAccountsResponse.data.data || [];
 
+        // Obter mais detalhes sobre a conta de negócios
+        const businessDetails = await axios.get(
+          `${this.baseApiUrl}/${business.id}`,
+          {
+            params: {
+              access_token: accessToken,
+              fields: 'id,name,verification_status,created_time,is_disabled,link'
+            }
+          }
+        );
+
         result.businessAccounts.push({
           id: business.id,
           name: business.name,
           verificationStatus: business.verification_status,
+          createdTime: businessDetails.data.created_time,
+          isDisabled: businessDetails.data.is_disabled || false,
+          link: businessDetails.data.link,
+          primaryPage: business.primary_page,
           adAccounts
         });
       }
@@ -146,7 +241,20 @@ class MetaBusinessAuthService {
       return result;
     } catch (error) {
       logger.error('Erro ao obter informações de contas de negócios:', error);
-      throw new Error(error.response?.data?.error?.message || error.message);
+      
+      // Identificar diferentes tipos de erros do Facebook
+      if (error.response?.data?.error) {
+        const fbError = error.response.data.error;
+        if (fbError.code === 190) {
+          throw new Error('O token de acesso expirou ou é inválido. Por favor, reconecte sua conta Facebook.');
+        } else if (fbError.code === 10 || fbError.code === 200) {
+          throw new Error('Erro de permissão. Por favor, reconecte sua conta com todas as permissões necessárias.');
+        } else if (fbError.code === 4) {
+          throw new Error('Limite de requisições da API do Facebook excedido. Por favor, tente novamente mais tarde.');
+        }
+      }
+      
+      throw new Error('Erro ao obter informações das contas de negócios: ' + (error.response?.data?.error?.message || error.message));
     }
   }
 
