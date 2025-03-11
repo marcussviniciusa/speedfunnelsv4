@@ -8,6 +8,7 @@ const dashboardRoutes = require('./dashboard.routes');
 const analyticsRoutes = require('./analytics.routes');
 const googleAnalyticsRoutes = require('./google-analytics.routes');
 const metaAdsRoutes = require('./meta-ads.routes');
+const metaBusinessAuthRoutes = require('./meta-business-auth.routes');
 
 // Setup routes
 router.use('/auth', authRoutes);
@@ -16,6 +17,7 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/google-analytics', googleAnalyticsRoutes);
 router.use('/meta-ads', metaAdsRoutes);
+router.use('/meta-business-auth', metaBusinessAuthRoutes);
 
 // API version and info
 router.get('/', (req, res) => {

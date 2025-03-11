@@ -17,6 +17,7 @@ import {
   Alert
 } from '@mui/material';
 import axios from 'axios';
+import MetaBusinessLogin from '../components/MetaBusinessLogin';
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -303,7 +304,7 @@ const Settings = () => {
                         name="googleAnalyticsEnabled"
                       />
                     }
-                    label="Habilitar Google Analytics"
+                    label="Habilitar integração com Google Analytics"
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -321,9 +322,9 @@ const Settings = () => {
                     fullWidth
                     label="Google Client Secret"
                     name="googleClientSecret"
+                    type="password"
                     value={apiSettings.googleClientSecret}
                     onChange={handleApiChange}
-                    type="password"
                     disabled={!apiSettings.googleAnalyticsEnabled}
                   />
                 </Grid>
@@ -339,11 +340,12 @@ const Settings = () => {
                 </Grid>
               </Grid>
               
-              <Divider sx={{ my: 3 }} />
+              <Divider sx={{ my: 4 }} />
               
               <Typography variant="h6" gutterBottom>
-                Meta Ads
+                Facebook Ads
               </Typography>
+              
               <Grid container spacing={3}>
                 <Grid item xs={12}>
                   <FormControlLabel
@@ -354,30 +356,25 @@ const Settings = () => {
                         name="metaAdsEnabled"
                       />
                     }
-                    label="Habilitar Meta Ads"
+                    label="Habilitar integração com Facebook Ads"
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Meta Access Token"
-                    name="metaAccessToken"
-                    value={apiSettings.metaAccessToken}
-                    onChange={handleApiChange}
-                    type="password"
-                    disabled={!apiSettings.metaAdsEnabled}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Meta Ad Account ID"
-                    name="metaAdAccountId"
-                    value={apiSettings.metaAdAccountId}
-                    onChange={handleApiChange}
-                    disabled={!apiSettings.metaAdsEnabled}
-                  />
-                </Grid>
+                
+                {apiSettings.metaAdsEnabled && (
+                  <Grid item xs={12}>
+                    <MetaBusinessLogin
+                      onLoginSuccess={(data) => {
+                        setSuccess('Conectado com sucesso ao Facebook Ads!');
+                        if (data.adAccounts && data.adAccounts.length > 0) {
+                          setApiSettings({
+                            ...apiSettings,
+                            metaAdAccountId: data.adAccounts[0].id
+                          });
+                        }
+                      }}
+                    />
+                  </Grid>
+                )}
               </Grid>
               
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
@@ -387,7 +384,7 @@ const Settings = () => {
                   color="primary"
                   disabled={saving}
                 >
-                  {saving ? 'Salvando...' : 'Salvar Configurações de API'}
+                  {saving ? 'Salvando...' : 'Salvar Configurações'}
                 </Button>
               </Box>
             </Box>

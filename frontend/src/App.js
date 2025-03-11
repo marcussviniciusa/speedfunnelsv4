@@ -19,6 +19,7 @@ import MetaAdsAnalytics from './pages/MetaAdsAnalytics';
 import GoogleAnalytics from './pages/GoogleAnalytics';
 import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import NotFound from './pages/NotFound';
+import MetaAuthComplete from './pages/MetaAuthComplete';
 
 // Componente de rota protegida
 const ProtectedRoute = ({ children }) => {
@@ -42,6 +43,7 @@ function App() {
           {/* Rotas públicas */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/meta-auth-complete" element={<MetaAuthComplete />} />
           
           {/* Rotas protegidas dentro do layout principal */}
           <Route path="/" element={
