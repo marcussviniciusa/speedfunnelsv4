@@ -1,6 +1,6 @@
 # Guia de Deploy - SpeedFunnels v4
 
-Este guia explica como implantar o SpeedFunnels v4 usando Docker, Portainer e Traefik.
+Este guia explica como implantar o SpeedFunnels v4 usando Portainer e Traefik para gerenciamento e roteamento.
 
 ## Pré-requisitos
 

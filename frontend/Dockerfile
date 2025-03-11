@@ -17,15 +17,21 @@ ENV CI=false
 
 RUN npm run build
 
-# Segunda etapa - servidor de produção
-FROM nginx:alpine
+# Segunda etapa - usando serve para servir conteúdo estático
+FROM node:18-alpine
 
-# Copia os arquivos do build para a pasta do nginx
-COPY --from=build /app/build /usr/share/nginx/html
+WORKDIR /app
 
-# Copia a configuração do nginx
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Instala o servidor serve globalmente
+RUN npm install -g serve
+
+# Copia os arquivos do build da etapa anterior
+COPY --from=build /app/build ./build
+
+# Define variável de ambiente para configuração de API proxy
+ENV REACT_APP_API_URL=http://api:3000
 
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+# Inicia o serve com configuração para proxy de API
+CMD ["serve", "-s", "build", "-l", "80"]
