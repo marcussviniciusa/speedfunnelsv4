@@ -6,9 +6,7 @@ yarn-error.log
 
 # Ambiente
 .env
-git rm --cached .env
-git commit -m "Remove .env file containing sensitive credentials"git rm --cached .env
-git commit -m "Remove .env file containing sensitive credentials".env.local
+.env.local
 .env.development.local
 .env.test.local
 .env.production.local
