@@ -1,12 +1,12 @@
 # Guia de Deploy - SpeedFunnels v4
 
-Este guia explica como implantar o SpeedFunnels v4 usando Portainer e Traefik para gerenciamento e roteamento.
+Este guia explica como implantar o SpeedFunnels v4 usando Traefik como proxy reverso e sistema de roteamento, com Portainer para gerenciamento de containers.
 
 ## Pré-requisitos
 
 - Servidor com Docker e Docker Compose instalados
 - Domínio configurado para apontar para o servidor (para ambiente de produção)
-- Variáveis de ambiente configuradas
+- Variáveis de ambiente configuradas para as integrações OAuth
 
 ## 1. Configuração de Variáveis de Ambiente
 
@@ -76,7 +76,19 @@ docker-compose up -d
    - **Portainer**: http://portainer.speedfunnels.local
    - **Traefik Dashboard**: http://localhost:8080
 
-## 3. Deploy de Produção
+## 3. Arquitetura do Deploy
+
+O SpeedFunnels v4 utiliza uma arquitetura moderna baseada em:
+
+1. **Traefik**: Gerencia todo o roteamento, SSL, e redirecionamentos
+2. **Portainer**: Interface web para gerenciamento dos containers
+3. **Containers Principais**:
+   - **Frontend**: Aplicativo React servido por Node.js (serve)
+   - **API**: Serviço backend para processamento de requisições
+   - **ETL**: Serviço de processamento de dados
+   - **Banco de dados e Redis**: Para persistência e cache
+
+## 4. Deploy de Produção
 
 Para implantar em um ambiente de produção:
 
@@ -87,7 +99,18 @@ git clone https://github.com/seu-usuario/speedfunnelsv4.git
 cd speedfunnelsv4
 ```
 
-2. Configure o arquivo `.env` com as variáveis para produção.
+2. Configure o arquivo `.env` com as variáveis para produção, incluindo as credenciais OAuth:
+
+```bash
+# Exemplo de configuração para integrações OAuth
+META_APP_ID=seu_app_id
+META_APP_SECRET=seu_app_secret
+META_REDIRECT_URI=https://api.seu-dominio.com/api/meta-business-auth/callback
+
+GOOGLE_CLIENT_ID=seu_client_id
+GOOGLE_CLIENT_SECRET=seu_client_secret
+GOOGLE_REDIRECT_URL=https://api.seu-dominio.com/api/auth/google/callback
+```
 
 3. Implante usando o docker-compose de produção:
 
@@ -95,7 +118,7 @@ cd speedfunnelsv4
 docker-compose -f docker-compose.prod.yml up -d
 ```
 
-4. O Traefik configurará automaticamente os certificados SSL usando Let's Encrypt.
+4. O Traefik configurará automaticamente os certificados SSL usando Let's Encrypt e gerenciará todo o roteamento.
 
 5. Acesse os serviços nos respectivos domínios:
    - **Dashboard**: https://seu-dominio.com
@@ -165,34 +188,83 @@ O SpeedFunnels v4 utiliza autenticação OAuth para acessar dados do Google Anal
    - Configure a tela de consentimento OAuth (tipo externo)
    - Crie credenciais OAuth Client ID (tipo aplicação web)
    - Adicione URLs de redirecionamento autorizados: `https://api.seu-dominio.com/api/auth/google/callback`
-4. Preencha as variáveis de ambiente com as credenciais obtidas
+   - Solicite os seguintes escopos:
+     - `https://www.googleapis.com/auth/userinfo.profile`
+     - `https://www.googleapis.com/auth/userinfo.email`
+     - `https://www.googleapis.com/auth/analytics.readonly`
+4. Preencha as variáveis de ambiente no arquivo `.env`:
+
+```bash
+GOOGLE_CLIENT_ID=seu_client_id
+GOOGLE_CLIENT_SECRET=seu_client_secret
+GOOGLE_REDIRECT_URL=https://api.seu-dominio.com/api/auth/google/callback
+```
 
 ### 7.2. Configuração do Meta Business OAuth
 
-Similar à integração com o Google Analytics, o Meta Business utiliza fluxo OAuth:
+A integração com o Meta Business (Facebook) segue o padrão OAuth 2.0:
 
 1. Acesse o [Meta for Developers](https://developers.facebook.com/)
-2. Registre um aplicativo e configure as permissões necessárias para Business SDK
-3. Configure a URL de redirecionamento: `https://api.seu-dominio.com/api/meta-business-auth/callback`
-4. Preencha as variáveis de ambiente no arquivo `.env`
+2. Crie um novo aplicativo ou use um existente
+3. Configure o produto "Facebook Login" com as seguintes configurações:
+   - Status do Login: Ativo
+   - Fluxo de Login Avançado: Ativado
+   - URI de Redirecionamento OAuth Válidos: `https://api.seu-dominio.com/api/meta-business-auth/callback`
+4. Configure as permissões necessárias:
+   - `ads_management`
+   - `ads_read`
+   - `business_management`
+   - `public_profile`
+   - `email`
+5. Preencha as variáveis de ambiente no arquivo `.env`:
 
-### 7.3. Testando as Integrações após Deploy
-
-Para testar as integrações OAuth após o deploy:
-
-1. Teste o fluxo de autenticação do Google Analytics:
 ```bash
-docker-compose -f docker-compose.prod.yml exec api node src/scripts/test-google-oauth.js
+META_APP_ID=seu_app_id
+META_APP_SECRET=seu_app_secret
+META_REDIRECT_URI=https://api.seu-dominio.com/api/meta-business-auth/callback
 ```
 
-2. Teste o fluxo de autenticação do Meta Business:
-```bash
-docker-compose -f docker-compose.prod.yml exec api node src/scripts/test-meta-oauth.js
+### 7.3. Considerações para o Deploy com Traefik
+
+Ao usar o Traefik como único proxy reverso, existem algumas configurações específicas que facilitam o fluxo OAuth:
+
+1. **Headers HTTP Seguros**: O Traefik está configurado para definir corretamente os headers HTTP necessários para OAuth:
+
+```yaml
+"traefik.http.middlewares.api-oauth-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
 ```
 
-3. Verifique ambas as conexões OAuth:
+2. **Manipulação de SPA**: Para o frontend React, o Traefik gerencia redirecionamentos necessários:
+
+```yaml
+"traefik.http.middlewares.frontend-spa.replacepathregex.regex=^/((?!api).*)$$"
+"traefik.http.middlewares.frontend-spa.replacepathregex.replacement=/$$1"
+```
+
+3. **Certificados SSL**: O Traefik gerencia automaticamente os certificados SSL necessários para as integrações OAuth seguras.
+
+### 7.4. Testando as Integrações após Deploy
+
+Para testar as integrações OAuth em produção:
+
+1. **Teste pelo UI**:
+   - Acesse a aplicação no navegador
+   - Vá para a página de configurações
+   - Tente se conectar com Google Analytics e Facebook Business
+   - Verifique se ambas as conexões são estabelecidas com sucesso
+
+2. **Verificação via API**:
+   - Verifique o status das conexões através da API:
+
 ```bash
-docker-compose -f docker-compose.prod.yml exec api node src/scripts/test-oauth-connections.js
+curl https://api.seu-dominio.com/api/auth/status -H "Authorization: Bearer ${SEU_TOKEN}"
+```
+
+3. **Logs de Autenticação**:
+   - Monitore os logs do serviço API durante o processo de autenticação:
+
+```bash
+docker-compose -f docker-compose.prod.yml logs -f api
 ```
 
 ## 8. Solução de Problemas
