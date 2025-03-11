@@ -17,6 +17,7 @@ import Settings from './pages/Settings';
 import Profile from './pages/Profile';
 import MetaAdsAnalytics from './pages/MetaAdsAnalytics';
 import GoogleAnalytics from './pages/GoogleAnalytics';
+import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import NotFound from './pages/NotFound';
 
 // Componente de rota protegida
@@ -53,6 +54,7 @@ function App() {
             <Route path="clients/:id" element={<ClientDetails />} />
             <Route path="meta-ads" element={<MetaAdsAnalytics />} />
             <Route path="google-analytics" element={<GoogleAnalytics />} />
+            <Route path="analytics" element={<AnalyticsDashboard />} />
             <Route path="settings" element={<Settings />} />
             <Route path="profile" element={<Profile />} />
           </Route>
